@@ -615,6 +615,15 @@ async def process_video_background(project_id: str, art_style: str, intensity: f
             'timestamp': time.time()
         }
         
+        # Progress callback function
+        def update_progress(progress, message):
+            processing_status[project_id] = {
+                'status': 'processing',
+                'progress': progress,
+                'message': message,
+                'timestamp': time.time()
+            }
+        
         # Use the bulletproof processor
         frames_processed = SuperReliableVideoProcessor.process_video_bulletproof(
             input_path=input_path,
@@ -623,7 +632,8 @@ async def process_video_background(project_id: str, art_style: str, intensity: f
             intensity=intensity,
             crop_params=crop_params,
             trim_params=trim_params,
-            resize_params=resize_params
+            resize_params=resize_params,
+            progress_callback=update_progress
         )
         
         # Verify output file was created successfully

@@ -467,8 +467,12 @@ async def process_video(request: ProcessingRequest, background_tasks: Background
         raise HTTPException(status_code=500, detail=str(e))
 
 async def process_video_background(project_id: str, art_style: str, intensity: float, crop_params: Optional[Dict], trim_params: Optional[Dict], resize_params: Optional[Dict]):
-    """Background task for video processing"""
-    try:
+    """Background task for video processing with bulletproof error handling"""
+    max_retries = 3
+    retry_count = 0
+    
+    while retry_count < max_retries:
+        try:
         # Get input file path
         input_path = None
         for file_path in UPLOAD_DIR.glob(f"{project_id}_*"):

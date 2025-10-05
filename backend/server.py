@@ -594,9 +594,12 @@ async def process_video(request: ProcessingRequest, background_tasks: Background
         
         return {"message": "Processing started", "project_id": request.project_id}
         
+    except HTTPException:
+        # Re-raise HTTP exceptions with their original status codes
+        raise
     except Exception as e:
         logging.error(f"Processing error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 async def process_video_background(project_id: str, art_style: str, intensity: float, crop_params: Optional[Dict], trim_params: Optional[Dict], resize_params: Optional[Dict]):
     """Background task for super-reliable video processing"""

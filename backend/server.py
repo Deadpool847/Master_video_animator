@@ -531,74 +531,74 @@ async def process_video_background(project_id: str, art_style: str, intensity: f
         try:
             # Get input file path
             input_path = None
-        for file_path in UPLOAD_DIR.glob(f"{project_id}_*"):
-            input_path = file_path
-            break
-        
-        if not input_path:
-            raise Exception("Input video file not found")
-        
-        output_filename = f"{project_id}_{art_style}_output.mp4"
-        output_path = OUTPUT_DIR / output_filename
-        
-        # Open video for processing
-        cap = cv2.VideoCapture(str(input_path))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        
-        # Apply trim parameters
-        start_frame = 0
-        end_frame = total_frames
-        
-        if trim_params:
-            start_frame = int(trim_params.get('start_time', 0) * fps)
-            end_frame = int(trim_params.get('end_time', total_frames / fps) * fps)
-        
-        cap.release()
-        
-        # Optimized chunking strategy
-        total_frames_to_process = end_frame - start_frame
-        
-        # Use smaller chunks for better progress tracking and memory management
-        chunk_size = min(300, max(50, total_frames_to_process // 8))  # Smaller, adaptive chunks
-        
-        temp_outputs = []
-        
-        # Process chunks with better error handling
-        chunk_number = 0
-        for i in range(start_frame, end_frame, chunk_size):
-            chunk_end = min(i + chunk_size, end_frame)
-            chunk_output = TEMP_DIR / f"{project_id}_chunk_{chunk_number:03d}.mp4"
+            for file_path in UPLOAD_DIR.glob(f"{project_id}_*"):
+                input_path = file_path
+                break
             
+            if not input_path:
+                raise Exception("Input video file not found")
+            
+            output_filename = f"{project_id}_{art_style}_output.mp4"
+            output_path = OUTPUT_DIR / output_filename
+            
+            # Open video for processing
+            cap = cv2.VideoCapture(str(input_path))
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            
+            # Apply trim parameters
+            start_frame = 0
+            end_frame = total_frames
+            
+            if trim_params:
+                start_frame = int(trim_params.get('start_time', 0) * fps)
+                end_frame = int(trim_params.get('end_time', total_frames / fps) * fps)
+            
+            cap.release()
+            
+            # Optimized chunking strategy
+            total_frames_to_process = end_frame - start_frame
+            
+            # Use smaller chunks for better progress tracking and memory management
+            chunk_size = min(300, max(50, total_frames_to_process // 8))  # Smaller, adaptive chunks
+            
+            temp_outputs = []
+            
+            # Process chunks with better error handling
+            chunk_number = 0
+            for i in range(start_frame, end_frame, chunk_size):
+                chunk_end = min(i + chunk_size, end_frame)
+                chunk_output = TEMP_DIR / f"{project_id}_chunk_{chunk_number:03d}.mp4"
+                
+                processing_status[project_id] = {
+                    'status': 'processing',
+                    'progress': (i - start_frame) / total_frames_to_process * 90,
+                    'message': f'Processing chunk {chunk_number + 1} - {art_style} effect'
+                }
+                
+                success = await VideoProcessor.process_video_chunk(
+                    input_path, chunk_output, i, chunk_end, art_style, intensity, crop_params, resize_params, project_id
+                )
+                
+                if success and chunk_output.exists():
+                    temp_outputs.append(chunk_output)
+                    chunk_number += 1
+                else:
+                    # Clean up any partial files
+                    for temp_file in temp_outputs:
+                        temp_file.unlink(missing_ok=True)
+                    raise Exception(f"Chunk processing failed at frame {i}")
+            
+            # Combine chunks with optimized FFmpeg command
             processing_status[project_id] = {
                 'status': 'processing',
-                'progress': (i - start_frame) / total_frames_to_process * 90,
-                'message': f'Processing chunk {chunk_number + 1} - {art_style} effect'
+                'progress': 95,
+                'message': 'Finalizing video...'
             }
             
-            success = await VideoProcessor.process_video_chunk(
-                input_path, chunk_output, i, chunk_end, art_style, intensity, crop_params, resize_params, project_id
-            )
-            
-            if success and chunk_output.exists():
-                temp_outputs.append(chunk_output)
-                chunk_number += 1
-            else:
-                # Clean up any partial files
-                for temp_file in temp_outputs:
-                    temp_file.unlink(missing_ok=True)
-                raise Exception(f"Chunk processing failed at frame {i}")
-        
-        # Combine chunks with optimized FFmpeg command
-        processing_status[project_id] = {
-            'status': 'processing',
-            'progress': 95,
-            'message': 'Finalizing video...'
-        }
-        
-        # Remove existing output file
-        if output_path.exists():
-            output_path.unlink()
+            # Remove existing output file
+            if output_path.exists():
+                output_path.unlink()
         
         if len(temp_outputs) > 1:
             # Create file list for FFmpeg concat

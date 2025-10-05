@@ -796,6 +796,13 @@ async def get_video_preview(project_id: str):
         cap.release()
         
         return {"preview_frames": preview_frames}
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions with their original status codes
+        raise
+    except Exception as e:
+        logging.error(f"Preview error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @api_router.get("/analyze/{project_id}")
 async def analyze_video_intelligence(project_id: str):

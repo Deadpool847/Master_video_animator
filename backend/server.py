@@ -234,7 +234,7 @@ class VideoProcessor:
                     else:
                         out.release()
                         out = None
-                except:
+                except Exception:
                     continue
             
             if out is None:

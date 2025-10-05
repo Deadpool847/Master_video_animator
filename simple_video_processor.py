@@ -122,6 +122,7 @@ class SuperReliableVideoProcessor:
             # Process frames
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
             frames_processed = 0
+            total_frames_to_process = end_frame - start_frame
             
             for frame_num in range(start_frame, end_frame):
                 ret, frame = cap.read()
@@ -151,6 +152,11 @@ class SuperReliableVideoProcessor:
                 # Write frame
                 out.write(frame)
                 frames_processed += 1
+                
+                # Update progress every 10 frames
+                if progress_callback and frames_processed % 10 == 0:
+                    progress = min(90, (frames_processed / total_frames_to_process) * 90)
+                    progress_callback(progress, f'Processing {art_style} effect: {frames_processed}/{total_frames_to_process} frames')
             
             cap.release()
             out.release()

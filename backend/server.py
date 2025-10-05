@@ -654,17 +654,43 @@ async def process_video_background(project_id: str, art_style: str, intensity: f
         if not output_path.exists() or output_path.stat().st_size < 1000:
             raise Exception("Output file not created or too small")
         
+        # Create internal gallery copy with organized structure
+        gallery_subdir = GALLERY_DIR / art_style
+        gallery_subdir.mkdir(exist_ok=True)
+        
+        gallery_filename = f"{project_id}_{art_style}_{int(time.time())}.mp4"
+        gallery_path = gallery_subdir / gallery_filename
+        
+        # Copy to gallery
+        shutil.copy2(str(output_path), str(gallery_path))
+        
+        # Create preview video (first 10 seconds or full video if shorter)
+        preview_filename = f"{project_id}_preview.mp4"
+        preview_path = PREVIEW_DIR / preview_filename
+        
+        await create_preview_video(str(output_path), str(preview_path))
+        
+        # Generate thumbnail
+        thumbnail_b64 = await generate_video_thumbnail(str(output_path))
+        
         # Update database with completion
         await db.video_projects.update_one(
             {"id": project_id},
-            {"$set": {"status": "completed", "output_path": str(output_path), "progress": 100}}
+            {"$set": {
+                "status": "completed", 
+                "output_path": str(output_path), 
+                "gallery_path": str(gallery_path),
+                "preview_path": str(preview_path),
+                "thumbnail": thumbnail_b64,
+                "progress": 100
+            }}
         )
         
         # Update processing status
         processing_status[project_id] = {
             'status': 'completed',
             'progress': 100,
-            'message': f'Successfully processed {frames_processed} frames!',
+            'message': f'Masterpiece created! Processed {frames_processed} frames with {art_style} effect',
             'timestamp': time.time()
         }
         

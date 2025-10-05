@@ -437,7 +437,7 @@ async def health_check():
         try:
             await db.video_projects.find_one({})
             db_healthy = True
-        except:
+        except Exception:
             pass
         
         # Check OpenCV

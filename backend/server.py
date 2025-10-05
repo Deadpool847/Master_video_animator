@@ -714,6 +714,98 @@ async def process_video_background(project_id: str, art_style: str, intensity: f
             {"$set": {"status": "failed", "error_message": error_msg}}
         )
 
+async def create_preview_video(input_path, preview_path, max_duration=10):
+    """Create a preview video (first 10 seconds or full if shorter)"""
+    try:
+        import subprocess
+        
+        # Get video duration first
+        probe_cmd = [
+            'ffprobe', '-v', 'quiet', '-print_format', 'json', 
+            '-show_format', str(input_path)
+        ]
+        
+        result = subprocess.run(probe_cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0:
+            import json
+            info = json.loads(result.stdout)
+            duration = float(info['format']['duration'])
+            preview_duration = min(duration, max_duration)
+        else:
+            preview_duration = max_duration
+        
+        # Create preview using FFmpeg
+        ffmpeg_cmd = [
+            '/usr/bin/ffmpeg', '-y',
+            '-i', str(input_path),
+            '-t', str(preview_duration),
+            '-c:v', 'libx264',
+            '-preset', 'fast',
+            '-crf', '28',  # Slightly lower quality for smaller size
+            '-movflags', '+faststart',
+            str(preview_path)
+        ]
+        
+        result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=120)
+        
+        if result.returncode != 0:
+            # Fallback: copy first part using OpenCV
+            cap = cv2.VideoCapture(str(input_path))
+            if cap.isOpened():
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                out = cv2.VideoWriter(str(preview_path), fourcc, fps, (width, height))
+                
+                max_frames = int(fps * preview_duration)
+                frame_count = 0
+                
+                while frame_count < max_frames and cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    out.write(frame)
+                    frame_count += 1
+                
+                cap.release()
+                out.release()
+        
+        return Path(preview_path).exists()
+        
+    except Exception as e:
+        logging.error(f"Preview creation error: {e}")
+        return False
+
+async def generate_video_thumbnail(input_path):
+    """Generate a thumbnail from the middle frame of the video"""
+    try:
+        cap = cv2.VideoCapture(str(input_path))
+        if not cap.isOpened():
+            return None
+        
+        # Get middle frame
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        middle_frame = total_frames // 2
+        
+        cap.set(cv2.CAP_PROP_POS_FRAMES, middle_frame)
+        ret, frame = cap.read()
+        cap.release()
+        
+        if ret:
+            # Resize for thumbnail
+            thumbnail = cv2.resize(frame, (320, 240))
+            _, buffer = cv2.imencode('.jpg', thumbnail, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            thumbnail_b64 = base64.b64encode(buffer).decode('utf-8')
+            return f"data:image/jpeg;base64,{thumbnail_b64}"
+        
+        return None
+        
+    except Exception as e:
+        logging.error(f"Thumbnail generation error: {e}")
+        return None
+
 @api_router.get("/status/{project_id}")
 async def get_processing_status(project_id: str):
     """Get real-time processing status"""

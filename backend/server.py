@@ -797,9 +797,12 @@ async def get_video_preview(project_id: str):
         
         return {"preview_frames": preview_frames}
         
+    except HTTPException:
+        # Re-raise HTTP exceptions with their original status codes
+        raise
     except Exception as e:
         logging.error(f"Preview error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 # Include the router in the main app
 app.include_router(api_router)

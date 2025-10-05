@@ -539,9 +539,12 @@ async def upload_video(file: UploadFile = File(...)):
             }
         }
         
+    except HTTPException:
+        # Re-raise HTTP exceptions with their original status codes
+        raise
     except Exception as e:
         logging.error(f"Upload error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @api_router.post("/process")
 async def process_video(request: ProcessingRequest, background_tasks: BackgroundTasks):

@@ -552,8 +552,9 @@ async def process_video(request: ProcessingRequest, background_tasks: Background
     """Start video processing with artistic effects and comprehensive validation"""
     try:
         # Validate art style
-        if request.art_style not in ['pencil', 'cartoon']:
-            raise HTTPException(status_code=400, detail="Art style must be 'pencil' or 'cartoon'")
+        valid_styles = ['pencil', 'cartoon', 'oil_painting', 'watercolor', 'anime', 'vintage_film']
+        if request.art_style not in valid_styles:
+            raise HTTPException(status_code=400, detail=f"Art style must be one of: {', '.join(valid_styles)}")
         
         # Validate intensity
         if not (0.0 <= request.intensity <= 1.0):

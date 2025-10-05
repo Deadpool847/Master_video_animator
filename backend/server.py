@@ -264,18 +264,35 @@ class VideoProcessor:
                 width = crop_params['width']
                 height = crop_params['height']
             
-            # Use H.264 codec for better compatibility and compression
-            fourcc = cv2.VideoWriter_fourcc(*'avc1')
-            
             # Remove existing output file to avoid FFmpeg prompts
             if output_path.exists():
                 output_path.unlink()
             
-            out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
-            if not out.isOpened():
-                # Fallback to mp4v codec
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+            # Try multiple codecs for maximum compatibility
+            codecs_to_try = [
+                ('mp4v', '.mp4'),  # Most reliable
+                ('XVID', '.avi'),  # Fallback 1
+                ('MJPG', '.avi')   # Fallback 2
+            ]
+            
+            out = None
+            for codec, ext in codecs_to_try:
+                try:
+                    fourcc = cv2.VideoWriter_fourcc(*codec)
+                    test_path = str(output_path).replace('.mp4', ext)
+                    out = cv2.VideoWriter(test_path, fourcc, fps, (width, height))
+                    if out.isOpened():
+                        # Update output path if we changed extension
+                        output_path = Path(test_path)
+                        break
+                    else:
+                        out.release()
+                        out = None
+                except:
+                    continue
+            
+            if out is None or not out.isOpened():
+                raise Exception(f"Could not initialize video writer with any codec")
             
             # Jump to start frame
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)

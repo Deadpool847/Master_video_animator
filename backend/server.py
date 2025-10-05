@@ -541,8 +541,15 @@ async def upload_video(file: UploadFile = File(...)):
 
 @api_router.post("/process")
 async def process_video(request: ProcessingRequest, background_tasks: BackgroundTasks):
-    """Start video processing with artistic effects"""
+    """Start video processing with artistic effects and comprehensive validation"""
     try:
+        # Validate art style
+        if request.art_style not in ['pencil', 'cartoon']:
+            raise HTTPException(status_code=400, detail="Art style must be 'pencil' or 'cartoon'")
+        
+        # Validate intensity
+        if not (0.0 <= request.intensity <= 1.0):
+            raise HTTPException(status_code=400, detail="Intensity must be between 0.0 and 1.0")
         # Get project from database
         project_doc = await db.video_projects.find_one({"id": request.project_id})
         if not project_doc:

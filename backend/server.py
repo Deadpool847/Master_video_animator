@@ -20,6 +20,7 @@ import json
 import base64
 from threading import Thread
 import time
+from simple_video_processor import SuperReliableVideoProcessor
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')

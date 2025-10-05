@@ -11,6 +11,10 @@ const VideoArtConverter = () => {
   const [currentProject, setCurrentProject] = useState(null);
   const [processingStatus, setProcessingStatus] = useState(null);
   const [artStyle, setArtStyle] = useState('pencil');
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [showAdvancedEffects, setShowAdvancedEffects] = useState(false);
+  const [gallery, setGallery] = useState([]);
+  const [showPreview, setShowPreview] = useState(null);
   const [intensity, setIntensity] = useState(0.5);
   const [previewFrames, setPreviewFrames] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -28,6 +32,7 @@ const VideoArtConverter = () => {
   // Load projects on component mount
   useEffect(() => {
     fetchProjects();
+    loadGallery();
   }, []);
 
   // Poll processing status
@@ -117,8 +122,38 @@ const VideoArtConverter = () => {
     try {
       const response = await axios.get(`${API}/preview/${projectId}`);
       setPreviewFrames(response.data.preview_frames);
+      
+      // Also load AI analysis
+      loadAiAnalysis(projectId);
     } catch (error) {
       console.error('Preview error:', error);
+    }
+  };
+
+  const loadAiAnalysis = async (projectId) => {
+    try {
+      const response = await axios.get(`${API}/analyze/${projectId}`);
+      setAiAnalysis(response.data);
+    } catch (error) {
+      console.error('AI Analysis error:', error);
+    }
+  };
+
+  const createComparisonGrid = async (projectId) => {
+    try {
+      setIsProcessing(true);
+      const response = await axios.post(`${API}/batch-compare/${projectId}`);
+      
+      if (response.status === 200) {
+        alert('Comparison grid created! Check your downloads.');
+        // Download automatically
+        window.open(`${API}/download-comparison/${projectId}`, '_blank');
+      }
+    } catch (error) {
+      console.error('Comparison creation error:', error);
+      alert('Failed to create comparison grid');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -159,22 +194,102 @@ const VideoArtConverter = () => {
 
   const downloadVideo = async (projectId) => {
     try {
+      // Show loading state
+      const downloadButton = document.querySelector(`[data-download="${projectId}"]`);
+      if (downloadButton) {
+        downloadButton.textContent = 'Downloading...';
+        downloadButton.disabled = true;
+      }
+
       const response = await axios.get(`${API}/download/${projectId}`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 60000, // 1 minute timeout
+        onDownloadProgress: (progressEvent) => {
+          if (progressEvent.lengthComputable) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            if (downloadButton) {
+              downloadButton.textContent = `Downloading... ${percentCompleted}%`;
+            }
+          }
+        }
       });
       
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create blob URL
+      const blob = new Blob([response.data], { type: 'video/mp4' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Extract filename from response headers or use default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'video_masterpiece.mp4';
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      // Create download link
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `processed_video.mp4`);
+      link.setAttribute('download', filename);
+      link.style.display = 'none';
       document.body.appendChild(link);
+      
+      // Trigger download
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      // Reset button
+      if (downloadButton) {
+        downloadButton.textContent = '⬇️';
+        downloadButton.disabled = false;
+      }
+      
+      // Show success message
+      alert('🎉 Masterpiece downloaded successfully!');
+      
     } catch (error) {
       console.error('Download error:', error);
-      alert('Download failed');
+      
+      // Reset button
+      const downloadButton = document.querySelector(`[data-download="${projectId}"]`);
+      if (downloadButton) {
+        downloadButton.textContent = '⬇️';
+        downloadButton.disabled = false;
+      }
+      
+      // Show detailed error message
+      if (error.response?.status === 404) {
+        alert('❌ Video file not found. It may have been deleted or moved.');
+      } else if (error.code === 'ECONNABORTED') {
+        alert('❌ Download timeout. Please try again or check your connection.');
+      } else {
+        alert(`❌ Download failed: ${error.response?.data?.detail || error.message || 'Unknown error'}`);
+      }
     }
+  };
+
+  const loadGallery = async () => {
+    try {
+      const response = await axios.get(`${API}/gallery`);
+      setGallery(response.data.gallery || []);
+    } catch (error) {
+      console.error('Gallery loading error:', error);
+    }
+  };
+
+  const openPreview = (projectId) => {
+    setShowPreview(projectId);
+  };
+
+  const closePreview = () => {
+    setShowPreview(null);
   };
 
   const updateVideoParam = (category, param, value) => {
@@ -288,6 +403,74 @@ const VideoArtConverter = () => {
                     <p className="text-sm text-gray-400">Bold animated style</p>
                   </button>
                 </div>
+                
+                {/* Advanced Effects Toggle */}
+                <div className="mb-4">
+                  <button
+                    onClick={() => setShowAdvancedEffects(!showAdvancedEffects)}
+                    className="text-cyan-400 hover:text-cyan-300 flex items-center gap-2"
+                  >
+                    <span>🎨 Advanced Masterpiece Effects</span>
+                    <span>{showAdvancedEffects ? '🔽' : '▶️'}</span>
+                  </button>
+                </div>
+                
+                {/* Advanced Effects Grid */}
+                {showAdvancedEffects && (
+                  <div className="grid md:grid-cols-2 gap-3 mb-6 p-4 bg-gray-900/50 rounded-lg border border-cyan-400/30">
+                    <button
+                      onClick={() => setArtStyle('oil_painting')}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        artStyle === 'oil_painting'
+                          ? 'border-orange-400 bg-orange-400/20'
+                          : 'border-gray-600 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">🎨</div>
+                      <h4 className="font-bold">Oil Painting</h4>
+                      <p className="text-xs text-gray-400">Classic masterpiece</p>
+                    </button>
+                    
+                    <button
+                      onClick={() => setArtStyle('watercolor')}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        artStyle === 'watercolor'
+                          ? 'border-blue-400 bg-blue-400/20'
+                          : 'border-gray-600 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">🌊</div>
+                      <h4 className="font-bold">Watercolor</h4>
+                      <p className="text-xs text-gray-400">Flowing artistic style</p>
+                    </button>
+                    
+                    <button
+                      onClick={() => setArtStyle('anime')}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        artStyle === 'anime'
+                          ? 'border-pink-400 bg-pink-400/20'
+                          : 'border-gray-600 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">⚡</div>
+                      <h4 className="font-bold">Anime Style</h4>
+                      <p className="text-xs text-gray-400">Japanese animation</p>
+                    </button>
+                    
+                    <button
+                      onClick={() => setArtStyle('vintage_film')}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        artStyle === 'vintage_film'
+                          ? 'border-yellow-400 bg-yellow-400/20'
+                          : 'border-gray-600 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">📽️</div>
+                      <h4 className="font-bold">Vintage Film</h4>
+                      <p className="text-xs text-gray-400">Classic cinema look</p>
+                    </button>
+                  </div>
+                )}
 
                 <div className="mb-6">
                   <label className="block text-sm font-medium mb-2">
@@ -485,8 +668,8 @@ const VideoArtConverter = () => {
             {/* Video Preview */}
             {previewFrames.length > 0 && (
               <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700">
-                <h2 className="text-2xl font-bold mb-4">📹 Preview</h2>
-                <div className="grid grid-cols-2 gap-2">
+                <h2 className="text-2xl font-bold mb-4">📹 Preview & Intelligence</h2>
+                <div className="grid grid-cols-2 gap-2 mb-4">
                   {previewFrames.slice(0, 4).map((frame, index) => (
                     <img
                       key={index}
@@ -497,8 +680,43 @@ const VideoArtConverter = () => {
                   ))}
                 </div>
                 
+                {/* AI Recommendations */}
+                {aiAnalysis && aiAnalysis.ai_recommendations && (
+                  <div className="mb-4 p-3 bg-gradient-to-r from-blue-900/30 to-purple-900/30 rounded-lg border border-blue-400/30">
+                    <h3 className="text-sm font-bold text-blue-300 mb-2">🤖 AI Recommendations</h3>
+                    {aiAnalysis.ai_recommendations.slice(0, 2).map((rec, index) => (
+                      <div key={index} className="text-xs mb-2">
+                        <button
+                          onClick={() => setArtStyle(rec.effect)}
+                          className="text-cyan-300 hover:text-cyan-200 font-medium"
+                        >
+                          {rec.effect.replace('_', ' ').toUpperCase()}
+                        </button>
+                        <p className="text-gray-400">{rec.reason}</p>
+                        <div className="w-full bg-gray-700 rounded-full h-1 mt-1">
+                          <div 
+                            className="bg-cyan-400 h-1 rounded-full" 
+                            style={{ width: `${rec.confidence * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Comparison Grid Button */}
                 {currentProject && (
-                  <div className="mt-4 text-sm text-gray-400">
+                  <button
+                    onClick={() => createComparisonGrid(currentProject.id)}
+                    disabled={isProcessing}
+                    className="w-full mb-4 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 disabled:opacity-50 text-white font-bold py-2 px-4 rounded-lg transition-all text-sm"
+                  >
+                    {isProcessing ? 'Creating...' : '🎯 Create Effect Comparison Grid'}
+                  </button>
+                )}
+                
+                {currentProject && (
+                  <div className="text-sm text-gray-400">
                     <p>Duration: {currentProject.duration?.toFixed(1)}s</p>
                     <p>Dimensions: {currentProject.width} × {currentProject.height}</p>
                     <p>FPS: {currentProject.fps?.toFixed(1)}</p>
@@ -544,47 +762,140 @@ const VideoArtConverter = () => {
               </div>
             )}
 
-            {/* Recent Projects */}
+            {/* Masterpiece Gallery */}
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700">
-              <h2 className="text-2xl font-bold mb-4">📚 Recent Projects</h2>
+              <h2 className="text-2xl font-bold mb-4">🎬 Masterpiece Gallery</h2>
               
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {projects.map((project) => (
-                  <div key={project.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm truncate">{project.filename}</p>
-                      <p className="text-xs text-gray-400">
-                        {project.art_style ? `${project.art_style} style` : 'No style'} • 
-                        {project.duration?.toFixed(1)}s
-                      </p>
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {projects.filter(p => p.status === 'completed').map((project) => (
+                  <div key={project.id} className="p-4 bg-gradient-to-r from-gray-800/70 to-gray-700/70 rounded-xl border border-gray-600 hover:border-cyan-400/50 transition-all">
+                    {/* Thumbnail and Info */}
+                    <div className="flex items-center gap-3 mb-3">
+                      {project.thumbnail && (
+                        <img 
+                          src={project.thumbnail} 
+                          alt="Thumbnail"
+                          className="w-16 h-12 object-cover rounded border border-gray-500"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <p className="font-medium text-sm text-white truncate">{project.filename}</p>
+                        <p className="text-xs text-gray-300">
+                          <span className="inline-block px-2 py-1 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-full border border-cyan-400/30 mr-2">
+                            {project.art_style?.replace('_', ' ').toUpperCase() || 'PROCESSED'}
+                          </span>
+                          {project.duration?.toFixed(1)}s • {new Date(project.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                     
+                    {/* Action Buttons */}
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${
-                        project.status === 'completed' ? 'bg-green-400' :
-                        project.status === 'processing' ? 'bg-blue-400' :
-                        project.status === 'failed' ? 'bg-red-400' : 'bg-gray-400'
-                      }`} />
+                      <button
+                        onClick={() => openPreview(project.id)}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1"
+                      >
+                        <span>👁️</span> Preview
+                      </button>
                       
-                      {project.status === 'completed' && (
-                        <button
-                          onClick={() => downloadVideo(project.id)}
-                          className="text-cyan-400 hover:text-cyan-300 text-sm"
-                        >
-                          ⬇️
-                        </button>
-                      )}
+                      <button
+                        onClick={() => downloadVideo(project.id)}
+                        data-download={project.id}
+                        className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white text-xs font-bold py-2 px-4 rounded-lg transition-all"
+                      >
+                        ⬇️
+                      </button>
                     </div>
                   </div>
                 ))}
                 
-                {projects.length === 0 && (
-                  <p className="text-gray-400 text-center py-4">No projects yet</p>
+                {projects.filter(p => p.status === 'completed').length === 0 && (
+                  <div className="text-center py-8">
+                    <div className="text-6xl mb-4">🎨</div>
+                    <p className="text-gray-400">No masterpieces yet</p>
+                    <p className="text-gray-500 text-sm">Upload a video to create your first artistic masterpiece!</p>
+                  </div>
                 )}
               </div>
             </div>
+            
+            {/* Processing Queue */}
+            {projects.filter(p => p.status !== 'completed').length > 0 && (
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700">
+                <h2 className="text-xl font-bold mb-4">⚡ Processing Queue</h2>
+                
+                <div className="space-y-2">
+                  {projects.filter(p => p.status !== 'completed').map((project) => (
+                    <div key={project.id} className="flex items-center justify-between p-2 bg-gray-700/30 rounded-lg">
+                      <div className="flex-1">
+                        <p className="font-medium text-xs truncate">{project.filename}</p>
+                        <p className="text-xs text-gray-400">
+                          {project.art_style || 'No style'} • {project.status}
+                        </p>
+                      </div>
+                      
+                      <span className={`w-2 h-2 rounded-full ${
+                        project.status === 'processing' ? 'bg-blue-400 animate-pulse' :
+                        project.status === 'failed' ? 'bg-red-400' : 'bg-gray-400'
+                      }`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
+        
+        {/* Preview Modal */}
+        {showPreview && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-900 rounded-2xl border border-gray-600 max-w-4xl w-full max-h-[90vh] overflow-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                    🎬 Masterpiece Preview
+                  </h2>
+                  <button
+                    onClick={closePreview}
+                    className="text-gray-400 hover:text-white text-2xl font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="bg-black rounded-xl overflow-hidden mb-4">
+                  <video
+                    controls
+                    autoPlay
+                    className="w-full h-auto max-h-[60vh]"
+                    src={`${API}/preview-video/${showPreview}`}
+                    onError={(e) => {
+                      console.error('Video preview error:', e);
+                      alert('Preview not available. The video might still be processing.');
+                    }}
+                  >
+                    Your browser does not support video playback.
+                  </video>
+                </div>
+                
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => downloadVideo(showPreview)}
+                    className="flex-1 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-bold py-3 px-6 rounded-lg transition-all"
+                  >
+                    📥 Download Full Quality
+                  </button>
+                  <button
+                    onClick={closePreview}
+                    className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

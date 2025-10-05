@@ -11,6 +11,8 @@ const VideoArtConverter = () => {
   const [currentProject, setCurrentProject] = useState(null);
   const [processingStatus, setProcessingStatus] = useState(null);
   const [artStyle, setArtStyle] = useState('pencil');
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [showAdvancedEffects, setShowAdvancedEffects] = useState(false);
   const [intensity, setIntensity] = useState(0.5);
   const [previewFrames, setPreviewFrames] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);

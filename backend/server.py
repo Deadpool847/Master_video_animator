@@ -82,61 +82,96 @@ processing_status = {}
 class VideoProcessor:
     @staticmethod
     def apply_pencil_sketch(frame, intensity=0.5):
-        """Apply pencil sketch effect to a frame"""
+        """Apply optimized pencil sketch effect to a frame"""
+        # Resize frame for faster processing if it's too large
+        height, width = frame.shape[:2]
+        max_dimension = 720  # Limit processing size
+        
+        if max(height, width) > max_dimension:
+            scale = max_dimension / max(height, width)
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            frame = cv2.resize(frame, (new_width, new_height))
+        
         # Convert to grayscale
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # Create inverted grayscale
+        # Optimized pencil sketch algorithm
         inv_gray = 255 - gray
         
-        # Apply Gaussian blur
-        blur_intensity = int(21 + (intensity * 20))  # Range: 21-41
-        blurred = cv2.GaussianBlur(inv_gray, (blur_intensity, blur_intensity), 0)
+        # Reduced blur intensity for faster processing
+        blur_size = max(5, int(7 + (intensity * 8)))  # Range: 7-15 (smaller than before)
+        if blur_size % 2 == 0:
+            blur_size += 1
+        blurred = cv2.GaussianBlur(inv_gray, (blur_size, blur_size), 0)
         
         # Create pencil sketch
         sketch = cv2.divide(gray, 255 - blurred, scale=256)
         
-        # Apply adaptive thresholding for more pencil-like appearance
-        threshold = cv2.adaptiveThreshold(sketch, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 10)
+        # Simplified thresholding for speed
+        sketch = cv2.adaptiveThreshold(sketch, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 8)
         
-        # Convert back to BGR for consistency
-        sketch_bgr = cv2.cvtColor(threshold, cv2.COLOR_GRAY2BGR)
+        # Convert to BGR
+        sketch_bgr = cv2.cvtColor(sketch, cv2.COLOR_GRAY2BGR)
+        
+        # Resize back to original size if needed
+        if max(height, width) > max_dimension:
+            sketch_bgr = cv2.resize(sketch_bgr, (width, height))
         
         # Blend with original if intensity is not full
         if intensity < 1.0:
-            sketch_bgr = cv2.addWeighted(frame, (1 - intensity), sketch_bgr, intensity, 0)
+            original_resized = frame if max(height, width) <= max_dimension else cv2.resize(frame, (width, height))
+            sketch_bgr = cv2.addWeighted(original_resized, (1 - intensity), sketch_bgr, intensity, 0)
         
         return sketch_bgr
     
     @staticmethod
     def apply_cartoon_effect(frame, intensity=0.5):
-        """Apply cartoon effect to a frame"""
-        # Reduce noise
-        bilateral = cv2.bilateralFilter(frame, 9, 200, 200)
+        """Apply optimized cartoon effect to a frame"""
+        # Resize frame for faster processing if it's too large
+        height, width = frame.shape[:2]
+        max_dimension = 720
+        
+        if max(height, width) > max_dimension:
+            scale = max_dimension / max(height, width)
+            new_width = int(width * scale)
+            new_height = int(height * scale)
+            frame = cv2.resize(frame, (new_width, new_height))
+        
+        # Optimized cartoon effect
+        # Reduce noise with faster bilateral filter
+        bilateral = cv2.bilateralFilter(frame, 5, 80, 80)  # Reduced parameters for speed
         
         # Create edge mask
         gray = cv2.cvtColor(bilateral, cv2.COLOR_BGR2GRAY)
-        edges = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 10)
+        edges = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 7, 8)
         edges = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
         
-        # Color quantization
-        k = int(8 + intensity * 4)  # Number of colors (8-12)
+        # Faster color quantization
+        k = max(4, int(6 + intensity * 3))  # Reduced colors for speed (6-9)
+        h, w = bilateral.shape[:2]
         data = bilateral.reshape((-1, 3))
         data = np.float32(data)
         
-        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 1.0)
-        _, labels, centers = cv2.kmeans(data, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+        # Reduced iterations for faster k-means
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+        _, labels, centers = cv2.kmeans(data, k, None, criteria, 5, cv2.KMEANS_RANDOM_CENTERS)
         
         centers = np.uint8(centers)
         quantized_data = centers[labels.flatten()]
-        quantized = quantized_data.reshape(bilateral.shape)
+        quantized = quantized_data.reshape((h, w, 3))
         
-        # Combine quantized image with edges
+        # Combine with edges
         cartoon = cv2.bitwise_and(quantized, edges)
         
-        # Blend with original if intensity is not full
+        # Resize back to original if needed
+        if max(height, width) > max_dimension:
+            cartoon = cv2.resize(cartoon, (width, height))
+        
+        # Blend with original
         if intensity < 1.0:
-            cartoon = cv2.addWeighted(frame, (1 - intensity), cartoon, intensity, 0)
+            original_resized = frame if max(height, width) <= max_dimension else cv2.resize(frame, (width, height))
+            cartoon = cv2.addWeighted(original_resized, (1 - intensity), cartoon, intensity, 0)
         
         return cartoon
     

@@ -603,24 +603,47 @@ async def process_video_background(project_id: str, art_style: str, intensity: f
             {"$set": {"status": "completed", "output_path": str(output_path), "progress": 100}}
         )
         
-        processing_status[project_id] = {
-            'status': 'completed',
-            'progress': 100,
-            'message': 'Processing completed successfully!'
-        }
-        
-    except Exception as e:
-        logging.error(f"Background processing error: {e}")
-        processing_status[project_id] = {
-            'status': 'failed',
-            'progress': 0,
-            'message': f'Error: {str(e)}'
-        }
-        
-        await db.video_projects.update_one(
-            {"id": project_id},
-            {"$set": {"status": "failed"}}
-        )
+            # Verify output file was created successfully
+            if not output_path.exists() or output_path.stat().st_size < 1000:
+                raise Exception("Output file not created or too small")
+            
+            processing_status[project_id] = {
+                'status': 'completed',
+                'progress': 100,
+                'message': 'Processing completed successfully!',
+                'timestamp': time.time()
+            }
+            
+            return  # Success - exit retry loop
+            
+        except Exception as e:
+            retry_count += 1
+            error_msg = str(e)
+            logging.error(f"Background processing error (attempt {retry_count}/{max_retries}): {error_msg}")
+            
+            if retry_count < max_retries:
+                # Wait before retry with exponential backoff
+                wait_time = 2 ** retry_count
+                processing_status[project_id] = {
+                    'status': 'retrying',
+                    'progress': 0,
+                    'message': f'Error occurred, retrying in {wait_time}s... (attempt {retry_count}/{max_retries})',
+                    'timestamp': time.time()
+                }
+                await asyncio.sleep(wait_time)
+            else:
+                # Final failure after all retries
+                processing_status[project_id] = {
+                    'status': 'failed',
+                    'progress': 0,
+                    'message': f'Processing failed after {max_retries} attempts: {error_msg}',
+                    'timestamp': time.time()
+                }
+                
+                await db.video_projects.update_one(
+                    {"id": project_id},
+                    {"$set": {"status": "failed", "error_message": error_msg}}
+                )
 
 @api_router.get("/status/{project_id}")
 async def get_processing_status(project_id: str):

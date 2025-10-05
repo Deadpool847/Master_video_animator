@@ -194,22 +194,102 @@ const VideoArtConverter = () => {
 
   const downloadVideo = async (projectId) => {
     try {
+      // Show loading state
+      const downloadButton = document.querySelector(`[data-download="${projectId}"]`);
+      if (downloadButton) {
+        downloadButton.textContent = 'Downloading...';
+        downloadButton.disabled = true;
+      }
+
       const response = await axios.get(`${API}/download/${projectId}`, {
-        responseType: 'blob'
+        responseType: 'blob',
+        timeout: 60000, // 1 minute timeout
+        onDownloadProgress: (progressEvent) => {
+          if (progressEvent.lengthComputable) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            if (downloadButton) {
+              downloadButton.textContent = `Downloading... ${percentCompleted}%`;
+            }
+          }
+        }
       });
       
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Create blob URL
+      const blob = new Blob([response.data], { type: 'video/mp4' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Extract filename from response headers or use default
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = 'video_masterpiece.mp4';
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+      
+      // Create download link
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `processed_video.mp4`);
+      link.setAttribute('download', filename);
+      link.style.display = 'none';
       document.body.appendChild(link);
+      
+      // Trigger download
       link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      
+      // Cleanup
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
+      
+      // Reset button
+      if (downloadButton) {
+        downloadButton.textContent = '⬇️';
+        downloadButton.disabled = false;
+      }
+      
+      // Show success message
+      alert('🎉 Masterpiece downloaded successfully!');
+      
     } catch (error) {
       console.error('Download error:', error);
-      alert('Download failed');
+      
+      // Reset button
+      const downloadButton = document.querySelector(`[data-download="${projectId}"]`);
+      if (downloadButton) {
+        downloadButton.textContent = '⬇️';
+        downloadButton.disabled = false;
+      }
+      
+      // Show detailed error message
+      if (error.response?.status === 404) {
+        alert('❌ Video file not found. It may have been deleted or moved.');
+      } else if (error.code === 'ECONNABORTED') {
+        alert('❌ Download timeout. Please try again or check your connection.');
+      } else {
+        alert(`❌ Download failed: ${error.response?.data?.detail || error.message || 'Unknown error'}`);
+      }
     }
+  };
+
+  const loadGallery = async () => {
+    try {
+      const response = await axios.get(`${API}/gallery`);
+      setGallery(response.data.gallery || []);
+    } catch (error) {
+      console.error('Gallery loading error:', error);
+    }
+  };
+
+  const openPreview = (projectId) => {
+    setShowPreview(projectId);
+  };
+
+  const closePreview = () => {
+    setShowPreview(null);
   };
 
   const updateVideoParam = (category, param, value) => {

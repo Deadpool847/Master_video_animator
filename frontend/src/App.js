@@ -845,6 +845,57 @@ const VideoArtConverter = () => {
             )}
           </div>
         </div>
+        
+        {/* Preview Modal */}
+        {showPreview && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-gray-900 rounded-2xl border border-gray-600 max-w-4xl w-full max-h-[90vh] overflow-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                    🎬 Masterpiece Preview
+                  </h2>
+                  <button
+                    onClick={closePreview}
+                    className="text-gray-400 hover:text-white text-2xl font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div className="bg-black rounded-xl overflow-hidden mb-4">
+                  <video
+                    controls
+                    autoPlay
+                    className="w-full h-auto max-h-[60vh]"
+                    src={`${API}/preview-video/${showPreview}`}
+                    onError={(e) => {
+                      console.error('Video preview error:', e);
+                      alert('Preview not available. The video might still be processing.');
+                    }}
+                  >
+                    Your browser does not support video playback.
+                  </video>
+                </div>
+                
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => downloadVideo(showPreview)}
+                    className="flex-1 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-bold py-3 px-6 rounded-lg transition-all"
+                  >
+                    📥 Download Full Quality
+                  </button>
+                  <button
+                    onClick={closePreview}
+                    className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-all"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

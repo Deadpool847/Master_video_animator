@@ -60,10 +60,13 @@ class VideoProject(BaseModel):
     fps: float
     status: str = "uploaded"  # uploaded, processing, completed, failed
     progress: float = 0.0
-    art_style: Optional[str] = None  # pencil, cartoon
+    art_style: Optional[str] = None  # pencil, cartoon, oil_painting, watercolor, anime, vintage_film
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     output_path: Optional[str] = None
+    gallery_path: Optional[str] = None  # Internal gallery copy
+    preview_path: Optional[str] = None  # Preview video path
     processing_params: Dict[str, Any] = Field(default_factory=dict)
+    thumbnail: Optional[str] = None  # Base64 thumbnail
 
 class VideoProjectCreate(BaseModel):
     filename: str

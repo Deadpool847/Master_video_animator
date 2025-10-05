@@ -1036,6 +1036,12 @@ async def download_comparison_grid(project_id: str):
             media_type="video/mp4",
             headers={"Content-Disposition": f"attachment; filename=comparison_grid_{project_id}.mp4"}
         )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Comparison download error: {e}")
+        raise HTTPException(status_code=500, detail="Comparison download failed")
 
 @api_router.get("/preview-video/{project_id}")
 async def get_video_preview_stream(project_id: str):

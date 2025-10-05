@@ -148,6 +148,18 @@ class SuperReliableVideoProcessor:
                     frame = SuperReliableVideoProcessor.apply_pencil_effect_simple(frame, intensity)
                 elif art_style == 'cartoon':
                     frame = SuperReliableVideoProcessor.apply_cartoon_effect_simple(frame, intensity)
+                elif art_style == 'oil_painting':
+                    from advanced_features import AdvancedArtisticEffects
+                    frame = AdvancedArtisticEffects.apply_oil_painting_effect(frame, intensity)
+                elif art_style == 'watercolor':
+                    from advanced_features import AdvancedArtisticEffects
+                    frame = AdvancedArtisticEffects.apply_watercolor_effect(frame, intensity)
+                elif art_style == 'anime':
+                    from advanced_features import AdvancedArtisticEffects
+                    frame = AdvancedArtisticEffects.apply_anime_style(frame, intensity)
+                elif art_style == 'vintage_film':
+                    from advanced_features import AdvancedArtisticEffects
+                    frame = AdvancedArtisticEffects.apply_vintage_film_effect(frame, intensity)
                 
                 # Write frame
                 out.write(frame)

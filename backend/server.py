@@ -529,8 +529,8 @@ async def process_video_background(project_id: str, art_style: str, intensity: f
     
     while retry_count < max_retries:
         try:
-        # Get input file path
-        input_path = None
+            # Get input file path
+            input_path = None
         for file_path in UPLOAD_DIR.glob(f"{project_id}_*"):
             input_path = file_path
             break

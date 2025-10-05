@@ -79,6 +79,23 @@ class ProcessingStatus(BaseModel):
 # Global processing status tracking
 processing_status = {}
 
+# Cleanup function for stuck processes
+def cleanup_processing_status():
+    """Clean up old processing status entries"""
+    current_time = time.time()
+    to_remove = []
+    for project_id, status in processing_status.items():
+        # Remove entries older than 1 hour
+        if hasattr(status, 'timestamp'):
+            if current_time - status['timestamp'] > 3600:
+                to_remove.append(project_id)
+        else:
+            # Add timestamp to existing entries
+            status['timestamp'] = current_time
+    
+    for project_id in to_remove:
+        del processing_status[project_id]
+
 class VideoProcessor:
     @staticmethod
     def apply_pencil_sketch(frame, intensity=0.5):

@@ -83,3 +83,7 @@ backend/outputs/8f389a07-d101-40ec-98bb-6686d0d90be4_pencil_output.mp4
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*

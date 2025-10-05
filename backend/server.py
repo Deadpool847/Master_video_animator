@@ -193,6 +193,52 @@ class VideoProcessor:
         return cartoon
     
     @staticmethod
+    async def combine_chunks_opencv(temp_outputs, output_path):
+        """Fallback method to combine chunks using OpenCV when FFmpeg fails"""
+        try:
+            if not temp_outputs:
+                raise Exception("No chunks to combine")
+            
+            # Get properties from first chunk
+            first_cap = cv2.VideoCapture(str(temp_outputs[0]))
+            fps = first_cap.get(cv2.CAP_PROP_FPS)
+            width = int(first_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(first_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            first_cap.release()
+            
+            # Create output writer
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+            
+            if not out.isOpened():
+                # Try with different codec
+                fourcc = cv2.VideoWriter_fourcc(*'XVID')
+                out = cv2.VideoWriter(str(output_path).replace('.mp4', '.avi'), fourcc, fps, (width, height))
+            
+            # Combine all chunks
+            for chunk_path in temp_outputs:
+                cap = cv2.VideoCapture(str(chunk_path))
+                while cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    out.write(frame)
+                cap.release()
+            
+            out.release()
+            cv2.destroyAllWindows()
+            
+            logging.info("Successfully combined chunks using OpenCV fallback")
+            
+        except Exception as e:
+            logging.error(f"OpenCV chunk combination failed: {e}")
+            # Last resort: just copy the largest chunk
+            if temp_outputs:
+                largest_chunk = max(temp_outputs, key=lambda p: p.stat().st_size)
+                shutil.copy2(str(largest_chunk), str(output_path))
+                logging.info("Used largest chunk as fallback output")
+    
+    @staticmethod
     async def process_video_chunk(input_path, output_path, start_frame, end_frame, art_style, intensity, crop_params, resize_params, project_id):
         """Process a chunk of video frames with optimized performance"""
         cap = None

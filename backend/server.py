@@ -1024,6 +1024,98 @@ async def download_comparison_grid(project_id: str):
             media_type="video/mp4",
             headers={"Content-Disposition": f"attachment; filename=comparison_grid_{project_id}.mp4"}
         )
+
+@api_router.get("/preview-video/{project_id}")
+async def get_video_preview_stream(project_id: str):
+    """Stream the preview video for in-browser viewing"""
+    try:
+        project_doc = await db.video_projects.find_one({"id": project_id})
+        if not project_doc:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        project = VideoProject(**project_doc)
+        
+        if project.status != "completed":
+            raise HTTPException(status_code=400, detail=f"Video not ready. Status: {project.status}")
+        
+        preview_path = project.preview_path
+        if not preview_path or not Path(preview_path).exists():
+            # Try to create preview from output if it doesn't exist
+            if project.output_path and Path(project.output_path).exists():
+                preview_filename = f"{project_id}_preview.mp4"
+                preview_path = PREVIEW_DIR / preview_filename
+                
+                success = await create_preview_video(project.output_path, str(preview_path))
+                if success:
+                    # Update database with preview path
+                    await db.video_projects.update_one(
+                        {"id": project_id},
+                        {"$set": {"preview_path": str(preview_path)}}
+                    )
+                else:
+                    raise HTTPException(status_code=404, detail="Preview creation failed")
+            else:
+                raise HTTPException(status_code=404, detail="Preview not available")
+        
+        return FileResponse(
+            path=str(preview_path),
+            filename=f"preview_{project_id}.mp4",
+            media_type="video/mp4",
+            headers={
+                "Content-Disposition": f"inline; filename=preview_{project_id}.mp4",
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Preview streaming error: {e}")
+        raise HTTPException(status_code=500, detail="Preview streaming failed")
+
+@api_router.get("/gallery")
+async def get_gallery():
+    """Get all processed videos in the gallery with thumbnails"""
+    try:
+        # Get all completed projects with thumbnails
+        projects = await db.video_projects.find(
+            {"status": "completed"},
+            sort=[("created_at", -1)]
+        ).limit(50).to_list(length=None)
+        
+        gallery_items = []
+        for project_doc in projects:
+            project = VideoProject(**project_doc)
+            
+            # Ensure thumbnail exists
+            if not project.thumbnail and project.output_path:
+                thumbnail = await generate_video_thumbnail(project.output_path)
+                if thumbnail:
+                    await db.video_projects.update_one(
+                        {"id": project.id},
+                        {"$set": {"thumbnail": thumbnail}}
+                    )
+                    project.thumbnail = thumbnail
+            
+            gallery_items.append({
+                "id": project.id,
+                "filename": project.filename,
+                "art_style": project.art_style,
+                "duration": project.duration,
+                "thumbnail": project.thumbnail,
+                "created_at": project.created_at.isoformat(),
+                "has_preview": bool(project.preview_path and Path(project.preview_path).exists()) if project.preview_path else False
+            })
+        
+        return {
+            "gallery": gallery_items,
+            "total_count": len(gallery_items),
+            "message": "Gallery loaded successfully"
+        }
+        
+    except Exception as e:
+        logging.error(f"Gallery error: {e}")
+        raise HTTPException(status_code=500, detail="Gallery loading failed")
         
     except HTTPException:
         raise

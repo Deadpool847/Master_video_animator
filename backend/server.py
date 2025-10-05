@@ -866,15 +866,27 @@ async def download_video(project_id: str):
         if not output_path.is_file():
             raise HTTPException(status_code=404, detail="Invalid output file")
         
-        # Create a safe filename
-        safe_filename = f"{project.filename.split('.')[0]}_{project.art_style or 'processed'}.mp4"
-        safe_filename = "".join(c for c in safe_filename if c.isalnum() or c in ".-_")
+        # Create a safe filename with timestamp
+        timestamp = int(time.time())
+        base_name = project.filename.split('.')[0] if '.' in project.filename else project.filename
+        safe_base = "".join(c for c in base_name if c.isalnum() or c in "-_")
+        art_style_clean = project.art_style.replace('_', '-') if project.art_style else 'processed'
+        
+        safe_filename = f"{safe_base}_{art_style_clean}_masterpiece_{timestamp}.mp4"
+        
+        # Get file size for proper headers
+        file_size = output_path.stat().st_size
         
         return FileResponse(
             path=str(output_path),
             filename=safe_filename,
             media_type="video/mp4",
-            headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+            headers={
+                "Content-Disposition": f"attachment; filename={safe_filename}",
+                "Content-Length": str(file_size),
+                "Cache-Control": "no-cache",
+                "X-Content-Type-Options": "nosniff"
+            }
         )
         
     except HTTPException:

@@ -194,49 +194,87 @@ class VideoProcessor:
     
     @staticmethod
     async def combine_chunks_opencv(temp_outputs, output_path):
-        """Fallback method to combine chunks using OpenCV when FFmpeg fails"""
+        """Robust fallback method to combine chunks using OpenCV when FFmpeg fails"""
         try:
             if not temp_outputs:
                 raise Exception("No chunks to combine")
             
             # Get properties from first chunk
             first_cap = cv2.VideoCapture(str(temp_outputs[0]))
-            fps = first_cap.get(cv2.CAP_PROP_FPS)
+            if not first_cap.isOpened():
+                raise Exception("Cannot open first chunk for reading")
+            
+            fps = max(1.0, first_cap.get(cv2.CAP_PROP_FPS))  # Ensure valid FPS
             width = int(first_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
             height = int(first_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             first_cap.release()
             
-            # Create output writer
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+            # Try multiple codecs for output
+            codecs_to_try = [
+                ('mp4v', '.mp4'),
+                ('XVID', '.avi'),
+                ('MJPG', '.avi')
+            ]
             
-            if not out.isOpened():
-                # Try with different codec
-                fourcc = cv2.VideoWriter_fourcc(*'XVID')
-                out = cv2.VideoWriter(str(output_path).replace('.mp4', '.avi'), fourcc, fps, (width, height))
+            out = None
+            final_output_path = output_path
+            
+            for codec, ext in codecs_to_try:
+                try:
+                    fourcc = cv2.VideoWriter_fourcc(*codec)
+                    test_path = str(output_path).replace('.mp4', ext)
+                    out = cv2.VideoWriter(test_path, fourcc, fps, (width, height))
+                    
+                    if out.isOpened():
+                        final_output_path = Path(test_path)
+                        break
+                    else:
+                        out.release()
+                        out = None
+                except:
+                    continue
+            
+            if out is None:
+                raise Exception("Cannot create video writer with any codec")
             
             # Combine all chunks
+            frames_written = 0
             for chunk_path in temp_outputs:
                 cap = cv2.VideoCapture(str(chunk_path))
-                while cap.isOpened():
-                    ret, frame = cap.read()
-                    if not ret:
-                        break
-                    out.write(frame)
-                cap.release()
+                if cap.isOpened():
+                    while True:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
+                        
+                        # Ensure frame dimensions match
+                        if frame.shape[1] != width or frame.shape[0] != height:
+                            frame = cv2.resize(frame, (width, height))
+                        
+                        out.write(frame)
+                        frames_written += 1
+                    cap.release()
             
             out.release()
             cv2.destroyAllWindows()
             
-            logging.info("Successfully combined chunks using OpenCV fallback")
+            if frames_written > 0:
+                # If we used a different extension, move to expected location
+                if final_output_path != output_path:
+                    shutil.move(str(final_output_path), str(output_path))
+                
+                logging.info(f"Successfully combined {len(temp_outputs)} chunks using OpenCV fallback ({frames_written} frames)")
+            else:
+                raise Exception("No frames were written to output")
             
         except Exception as e:
             logging.error(f"OpenCV chunk combination failed: {e}")
             # Last resort: just copy the largest chunk
             if temp_outputs:
-                largest_chunk = max(temp_outputs, key=lambda p: p.stat().st_size)
-                shutil.copy2(str(largest_chunk), str(output_path))
-                logging.info("Used largest chunk as fallback output")
+                largest_chunk = max(temp_outputs, key=lambda p: p.stat().st_size if p.exists() else 0)
+                if largest_chunk.exists():
+                    shutil.copy2(str(largest_chunk), str(output_path))
+                    logging.info("Used largest chunk as fallback output")
     
     @staticmethod
     async def process_video_chunk(input_path, output_path, start_frame, end_frame, art_style, intensity, crop_params, resize_params, project_id):

@@ -32,6 +32,7 @@ const VideoArtConverter = () => {
   // Load projects on component mount
   useEffect(() => {
     fetchProjects();
+    loadGallery();
   }, []);
 
   // Poll processing status

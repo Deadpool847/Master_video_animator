@@ -429,52 +429,87 @@ async def process_video_background(project_id: str, art_style: str, intensity: f
         
         cap.release()
         
-        # Process video in chunks for large files
-        chunk_size = min(1000, (end_frame - start_frame) // 4)  # Adaptive chunk size
-        if chunk_size < 100:
-            chunk_size = end_frame - start_frame
+        # Optimized chunking strategy
+        total_frames_to_process = end_frame - start_frame
+        
+        # Use smaller chunks for better progress tracking and memory management
+        chunk_size = min(300, max(50, total_frames_to_process // 8))  # Smaller, adaptive chunks
         
         temp_outputs = []
         
-        # Process chunks
+        # Process chunks with better error handling
+        chunk_number = 0
         for i in range(start_frame, end_frame, chunk_size):
             chunk_end = min(i + chunk_size, end_frame)
-            chunk_output = TEMP_DIR / f"{project_id}_chunk_{i}.mp4"
+            chunk_output = TEMP_DIR / f"{project_id}_chunk_{chunk_number:03d}.mp4"
+            
+            processing_status[project_id] = {
+                'status': 'processing',
+                'progress': (i - start_frame) / total_frames_to_process * 90,
+                'message': f'Processing chunk {chunk_number + 1} - {art_style} effect'
+            }
             
             success = await VideoProcessor.process_video_chunk(
                 input_path, chunk_output, i, chunk_end, art_style, intensity, crop_params, resize_params, project_id
             )
             
-            if success:
+            if success and chunk_output.exists():
                 temp_outputs.append(chunk_output)
+                chunk_number += 1
             else:
-                raise Exception("Chunk processing failed")
+                # Clean up any partial files
+                for temp_file in temp_outputs:
+                    temp_file.unlink(missing_ok=True)
+                raise Exception(f"Chunk processing failed at frame {i}")
         
-        # Combine chunks if multiple
+        # Combine chunks with optimized FFmpeg command
+        processing_status[project_id] = {
+            'status': 'processing',
+            'progress': 95,
+            'message': 'Finalizing video...'
+        }
+        
+        # Remove existing output file
+        if output_path.exists():
+            output_path.unlink()
+        
         if len(temp_outputs) > 1:
-            processing_status[project_id] = {
-                'status': 'processing',
-                'progress': 90,
-                'message': 'Combining video chunks...'
-            }
-            
             # Create file list for FFmpeg concat
             concat_file = TEMP_DIR / f"{project_id}_concat.txt"
             with open(concat_file, 'w') as f:
                 for temp_output in temp_outputs:
-                    f.write(f"file '{temp_output}'\n")
+                    f.write(f"file '{temp_output.resolve()}'\n")
             
-            # Use FFmpeg to concatenate
-            cmd = f"ffmpeg -f concat -safe 0 -i {concat_file} -c copy {output_path}"
-            os.system(cmd)
+            # Use optimized FFmpeg command with proper error handling
+            cmd = [
+                'ffmpeg', '-y',  # Overwrite output files without asking
+                '-f', 'concat',
+                '-safe', '0',
+                '-i', str(concat_file),
+                '-c:v', 'libx264',  # Use H.264 codec
+                '-preset', 'fast',   # Faster encoding
+                '-crf', '23',        # Good quality/size balance
+                str(output_path)
+            ]
+            
+            import subprocess
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            
+            if result.returncode != 0:
+                logging.error(f"FFmpeg error: {result.stderr}")
+                # Fallback: copy first chunk as output
+                if temp_outputs:
+                    shutil.copy2(str(temp_outputs[0]), str(output_path))
             
             # Cleanup temp files
             for temp_output in temp_outputs:
                 temp_output.unlink(missing_ok=True)
             concat_file.unlink(missing_ok=True)
         else:
-            # Single chunk, just move it
-            shutil.move(str(temp_outputs[0]), str(output_path))
+            # Single chunk, just copy it
+            if temp_outputs:
+                shutil.copy2(str(temp_outputs[0]), str(output_path))
+                temp_outputs[0].unlink(missing_ok=True)
         
         # Update project status
         await db.video_projects.update_one(

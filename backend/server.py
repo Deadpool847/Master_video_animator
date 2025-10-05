@@ -422,16 +422,16 @@ async def upload_video(file: UploadFile = File(...)):
         
         if len(content) < 1000:  # Minimum viable video size
             raise HTTPException(status_code=400, detail="File too small or corrupted")
-        # Validate file type
-        if not file.content_type.startswith('video/'):
-            raise HTTPException(status_code=400, detail="File must be a video")
-        
         project_id = str(uuid.uuid4())
-        file_path = UPLOAD_DIR / f"{project_id}_{file.filename}"
+        # Sanitize filename
+        safe_filename = "".join(c for c in file.filename if c.isalnum() or c in ".-_")
+        if not safe_filename:
+            safe_filename = "uploaded_video.mp4"
+        
+        file_path = UPLOAD_DIR / f"{project_id}_{safe_filename}"
         
         # Save uploaded file
         async with aiofiles.open(file_path, 'wb') as f:
-            content = await file.read()
             await f.write(content)
         
         # Extract video metadata

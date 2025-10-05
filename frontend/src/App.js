@@ -320,6 +320,74 @@ const VideoArtConverter = () => {
                     <p className="text-sm text-gray-400">Bold animated style</p>
                   </button>
                 </div>
+                
+                {/* Advanced Effects Toggle */}
+                <div className="mb-4">
+                  <button
+                    onClick={() => setShowAdvancedEffects(!showAdvancedEffects)}
+                    className="text-cyan-400 hover:text-cyan-300 flex items-center gap-2"
+                  >
+                    <span>🎨 Advanced Masterpiece Effects</span>
+                    <span>{showAdvancedEffects ? '🔽' : '▶️'}</span>
+                  </button>
+                </div>
+                
+                {/* Advanced Effects Grid */}
+                {showAdvancedEffects && (
+                  <div className="grid md:grid-cols-2 gap-3 mb-6 p-4 bg-gray-900/50 rounded-lg border border-cyan-400/30">
+                    <button
+                      onClick={() => setArtStyle('oil_painting')}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        artStyle === 'oil_painting'
+                          ? 'border-orange-400 bg-orange-400/20'
+                          : 'border-gray-600 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">🎨</div>
+                      <h4 className="font-bold">Oil Painting</h4>
+                      <p className="text-xs text-gray-400">Classic masterpiece</p>
+                    </button>
+                    
+                    <button
+                      onClick={() => setArtStyle('watercolor')}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        artStyle === 'watercolor'
+                          ? 'border-blue-400 bg-blue-400/20'
+                          : 'border-gray-600 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">🌊</div>
+                      <h4 className="font-bold">Watercolor</h4>
+                      <p className="text-xs text-gray-400">Flowing artistic style</p>
+                    </button>
+                    
+                    <button
+                      onClick={() => setArtStyle('anime')}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        artStyle === 'anime'
+                          ? 'border-pink-400 bg-pink-400/20'
+                          : 'border-gray-600 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">⚡</div>
+                      <h4 className="font-bold">Anime Style</h4>
+                      <p className="text-xs text-gray-400">Japanese animation</p>
+                    </button>
+                    
+                    <button
+                      onClick={() => setArtStyle('vintage_film')}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm ${
+                        artStyle === 'vintage_film'
+                          ? 'border-yellow-400 bg-yellow-400/20'
+                          : 'border-gray-600 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className="text-2xl mb-1">📽️</div>
+                      <h4 className="font-bold">Vintage Film</h4>
+                      <p className="text-xs text-gray-400">Classic cinema look</p>
+                    </button>
+                  </div>
+                )}
 
                 <div className="mb-6">
                   <label className="block text-sm font-medium mb-2">

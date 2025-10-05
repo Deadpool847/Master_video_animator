@@ -429,8 +429,15 @@ async def upload_video(file: UploadFile = File(...)):
         if not file:
             raise HTTPException(status_code=400, detail="No file provided")
         
-        if not file.content_type or not file.content_type.startswith('video/'):
-            raise HTTPException(status_code=400, detail="File must be a video format")
+        # Check file content type and extension
+        valid_video_types = ['video/mp4', 'video/avi', 'video/mov', 'video/quicktime', 'video/x-msvideo']
+        valid_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv']
+        
+        is_valid_type = file.content_type and file.content_type in valid_video_types
+        is_valid_extension = any(file.filename.lower().endswith(ext) for ext in valid_extensions)
+        
+        if not (is_valid_type or is_valid_extension):
+            raise HTTPException(status_code=400, detail="File must be a video format (.mp4, .avi, .mov, etc.)")
         
         # Check file size (max 2GB for safety)
         content = await file.read()

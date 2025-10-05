@@ -593,183 +593,76 @@ async def process_video(request: ProcessingRequest, background_tasks: Background
         raise HTTPException(status_code=500, detail=str(e))
 
 async def process_video_background(project_id: str, art_style: str, intensity: float, crop_params: Optional[Dict], trim_params: Optional[Dict], resize_params: Optional[Dict]):
-    """Background task for video processing with bulletproof error handling"""
-    max_retries = 3
-    retry_count = 0
-    
-    while retry_count < max_retries:
-        try:
-            # Get input file path
-            input_path = None
-            for file_path in UPLOAD_DIR.glob(f"{project_id}_*"):
-                input_path = file_path
-                break
-            
-            if not input_path:
-                raise Exception("Input video file not found")
-            
-            output_filename = f"{project_id}_{art_style}_output.mp4"
-            output_path = OUTPUT_DIR / output_filename
-            
-            # Open video for processing
-            cap = cv2.VideoCapture(str(input_path))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            
-            # Apply trim parameters
-            start_frame = 0
-            end_frame = total_frames
-            
-            if trim_params:
-                start_frame = int(trim_params.get('start_time', 0) * fps)
-                end_frame = int(trim_params.get('end_time', total_frames / fps) * fps)
-            
-            cap.release()
-            
-            # Optimized chunking strategy
-            total_frames_to_process = end_frame - start_frame
-            
-            # Use smaller chunks for better progress tracking and memory management
-            chunk_size = min(300, max(50, total_frames_to_process // 8))  # Smaller, adaptive chunks
-            
-            temp_outputs = []
-            
-            # Process chunks with better error handling
-            chunk_number = 0
-            for i in range(start_frame, end_frame, chunk_size):
-                chunk_end = min(i + chunk_size, end_frame)
-                chunk_output = TEMP_DIR / f"{project_id}_chunk_{chunk_number:03d}.mp4"
-                
-                processing_status[project_id] = {
-                    'status': 'processing',
-                    'progress': (i - start_frame) / total_frames_to_process * 90,
-                    'message': f'Processing chunk {chunk_number + 1} - {art_style} effect'
-                }
-                
-                success = await VideoProcessor.process_video_chunk(
-                    input_path, chunk_output, i, chunk_end, art_style, intensity, crop_params, resize_params, project_id
-                )
-                
-                if success and chunk_output.exists():
-                    temp_outputs.append(chunk_output)
-                    chunk_number += 1
-                else:
-                    # Clean up any partial files
-                    for temp_file in temp_outputs:
-                        temp_file.unlink(missing_ok=True)
-                    raise Exception(f"Chunk processing failed at frame {i}")
-            
-            # Combine chunks with optimized FFmpeg command
-            processing_status[project_id] = {
-                'status': 'processing',
-                'progress': 95,
-                'message': 'Finalizing video...'
-            }
-            
-            # Remove existing output file
-            if output_path.exists():
-                output_path.unlink()
-            
-            if len(temp_outputs) > 1:
-                # Create file list for FFmpeg concat
-                concat_file = TEMP_DIR / f"{project_id}_concat.txt"
-                with open(concat_file, 'w') as f:
-                    for temp_output in temp_outputs:
-                        f.write(f"file '{temp_output.resolve()}'\n")
-                
-                # Use optimized FFmpeg command with full path and robust error handling
-                ffmpeg_path = '/usr/bin/ffmpeg'
-                cmd = [
-                    ffmpeg_path, '-y',  # Overwrite output files without asking
-                    '-f', 'concat',
-                    '-safe', '0',
-                    '-i', str(concat_file),
-                    '-c:v', 'libx264',  # Use H.264 codec
-                    '-preset', 'fast',   # Faster encoding
-                    '-crf', '23',        # Good quality/size balance
-                    '-movflags', '+faststart',  # Optimize for web streaming
-                    str(output_path)
-                ]
-                
-                import subprocess
-                try:
-                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)  # 5 minute timeout
-                    
-                    if result.returncode != 0:
-                        logging.error(f"FFmpeg concatenation failed: {result.stderr}")
-                        # Fallback 1: Try simpler FFmpeg command
-                        simple_cmd = [ffmpeg_path, '-y', '-f', 'concat', '-safe', '0', '-i', str(concat_file), '-c', 'copy', str(output_path)]
-                        simple_result = subprocess.run(simple_cmd, capture_output=True, text=True, timeout=180)
-                        
-                        if simple_result.returncode != 0:
-                            logging.error(f"Simple FFmpeg also failed: {simple_result.stderr}")
-                            # Fallback 2: Use OpenCV to combine chunks
-                            await VideoProcessor.combine_chunks_opencv(temp_outputs, output_path)
-                    
-                except subprocess.TimeoutExpired:
-                    logging.error("FFmpeg timeout - using fallback method")
-                    await VideoProcessor.combine_chunks_opencv(temp_outputs, output_path)
-                except Exception as e:
-                    logging.error(f"FFmpeg subprocess error: {e}")
-                    await VideoProcessor.combine_chunks_opencv(temp_outputs, output_path)
-                
-                # Cleanup temp files
-                for temp_output in temp_outputs:
-                    temp_output.unlink(missing_ok=True)
-                concat_file.unlink(missing_ok=True)
-            else:
-                # Single chunk, just copy it
-                if temp_outputs:
-                    shutil.copy2(str(temp_outputs[0]), str(output_path))
-                    temp_outputs[0].unlink(missing_ok=True)
-            
-            # Update project status
-            await db.video_projects.update_one(
-                {"id": project_id},
-                {"$set": {"status": "completed", "output_path": str(output_path), "progress": 100}}
-            )
-            
-            # Verify output file was created successfully
-            if not output_path.exists() or output_path.stat().st_size < 1000:
-                raise Exception("Output file not created or too small")
-            
-            processing_status[project_id] = {
-                'status': 'completed',
-                'progress': 100,
-                'message': 'Processing completed successfully!',
-                'timestamp': time.time()
-            }
-            
-            return  # Success - exit retry loop
-            
-        except Exception as e:
-            retry_count += 1
-            error_msg = str(e)
-            logging.error(f"Background processing error (attempt {retry_count}/{max_retries}): {error_msg}")
-            
-            if retry_count < max_retries:
-                # Wait before retry with exponential backoff
-                wait_time = 2 ** retry_count
-                processing_status[project_id] = {
-                    'status': 'retrying',
-                    'progress': 0,
-                    'message': f'Error occurred, retrying in {wait_time}s... (attempt {retry_count}/{max_retries})',
-                    'timestamp': time.time()
-                }
-                await asyncio.sleep(wait_time)
-            else:
-                # Final failure after all retries
-                processing_status[project_id] = {
-                    'status': 'failed',
-                    'progress': 0,
-                    'message': f'Processing failed after {max_retries} attempts: {error_msg}',
-                    'timestamp': time.time()
-                }
-                
-                await db.video_projects.update_one(
-                    {"id": project_id},
-                    {"$set": {"status": "failed", "error_message": error_msg}}
-                )
+    """Background task for super-reliable video processing"""
+    try:
+        # Get input file path
+        input_path = None
+        for file_path in UPLOAD_DIR.glob(f"{project_id}_*"):
+            input_path = file_path
+            break
+        
+        if not input_path:
+            raise Exception("Input video file not found")
+        
+        output_filename = f"{project_id}_{art_style}_output.mp4"
+        output_path = OUTPUT_DIR / output_filename
+        
+        # Update status to processing
+        processing_status[project_id] = {
+            'status': 'processing',
+            'progress': 10,
+            'message': f'Starting {art_style} effect processing...',
+            'timestamp': time.time()
+        }
+        
+        # Use the bulletproof processor
+        frames_processed = SuperReliableVideoProcessor.process_video_bulletproof(
+            input_path=input_path,
+            output_path=output_path,
+            art_style=art_style,
+            intensity=intensity,
+            crop_params=crop_params,
+            trim_params=trim_params,
+            resize_params=resize_params
+        )
+        
+        # Verify output file was created successfully
+        if not output_path.exists() or output_path.stat().st_size < 1000:
+            raise Exception("Output file not created or too small")
+        
+        # Update database with completion
+        await db.video_projects.update_one(
+            {"id": project_id},
+            {"$set": {"status": "completed", "output_path": str(output_path), "progress": 100}}
+        )
+        
+        # Update processing status
+        processing_status[project_id] = {
+            'status': 'completed',
+            'progress': 100,
+            'message': f'Successfully processed {frames_processed} frames!',
+            'timestamp': time.time()
+        }
+        
+        logging.info(f"Video processing completed for project {project_id}: {frames_processed} frames")
+        
+    except Exception as e:
+        error_msg = str(e)
+        logging.error(f"Video processing failed for project {project_id}: {error_msg}")
+        
+        # Update status to failed
+        processing_status[project_id] = {
+            'status': 'failed',
+            'progress': 0,
+            'message': f'Processing failed: {error_msg}',
+            'timestamp': time.time()
+        }
+        
+        # Update database
+        await db.video_projects.update_one(
+            {"id": project_id},
+            {"$set": {"status": "failed", "error_message": error_msg}}
+        )
 
 @api_router.get("/status/{project_id}")
 async def get_processing_status(project_id: str):

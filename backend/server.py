@@ -487,6 +487,7 @@ async def upload_video(file: UploadFile = File(...)):
         
         if len(content) < 1000:  # Minimum viable video size
             raise HTTPException(status_code=400, detail="File too small or corrupted")
+        
         project_id = str(uuid.uuid4())
         # Sanitize filename
         safe_filename = "".join(c for c in file.filename if c.isalnum() or c in ".-_")

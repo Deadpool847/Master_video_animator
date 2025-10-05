@@ -362,10 +362,66 @@ class VideoProcessor:
 async def root():
     return {"message": "Video Art Converter API - Ready to create masterpieces!"}
 
+@api_router.get("/health")
+async def health_check():
+    """System health check endpoint"""
+    try:
+        # Check disk space
+        import shutil
+        disk_usage = shutil.disk_usage("/app")
+        free_gb = disk_usage.free / (1024**3)
+        
+        # Check FFmpeg availability
+        ffmpeg_available = Path('/usr/bin/ffmpeg').exists()
+        
+        # Check database connection
+        db_healthy = False
+        try:
+            await db.video_projects.find_one({})
+            db_healthy = True
+        except:
+            pass
+        
+        # Check OpenCV
+        opencv_version = cv2.__version__
+        
+        health_status = {
+            "status": "healthy" if all([free_gb > 1, ffmpeg_available, db_healthy]) else "degraded",
+            "disk_space_gb": round(free_gb, 2),
+            "ffmpeg_available": ffmpeg_available,
+            "database_connected": db_healthy,
+            "opencv_version": opencv_version,
+            "active_processes": len(processing_status),
+            "directories_ready": all([
+                UPLOAD_DIR.exists(),
+                OUTPUT_DIR.exists(),
+                TEMP_DIR.exists()
+            ])
+        }
+        
+        return health_status
+        
+    except Exception as e:
+        return {"status": "unhealthy", "error": str(e)}
+
 @api_router.post("/upload")
 async def upload_video(file: UploadFile = File(...)):
-    """Upload video file with chunked processing support"""
+    """Upload video file with comprehensive validation and chunked processing support"""
     try:
+        # Input validation
+        if not file:
+            raise HTTPException(status_code=400, detail="No file provided")
+        
+        if not file.content_type or not file.content_type.startswith('video/'):
+            raise HTTPException(status_code=400, detail="File must be a video format")
+        
+        # Check file size (max 2GB for safety)
+        content = await file.read()
+        if len(content) > 2 * 1024 * 1024 * 1024:  # 2GB
+            raise HTTPException(status_code=413, detail="File too large (max 2GB)")
+        
+        if len(content) < 1000:  # Minimum viable video size
+            raise HTTPException(status_code=400, detail="File too small or corrupted")
         # Validate file type
         if not file.content_type.startswith('video/'):
             raise HTTPException(status_code=400, detail="File must be a video")

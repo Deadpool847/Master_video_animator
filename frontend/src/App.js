@@ -119,8 +119,38 @@ const VideoArtConverter = () => {
     try {
       const response = await axios.get(`${API}/preview/${projectId}`);
       setPreviewFrames(response.data.preview_frames);
+      
+      // Also load AI analysis
+      loadAiAnalysis(projectId);
     } catch (error) {
       console.error('Preview error:', error);
+    }
+  };
+
+  const loadAiAnalysis = async (projectId) => {
+    try {
+      const response = await axios.get(`${API}/analyze/${projectId}`);
+      setAiAnalysis(response.data);
+    } catch (error) {
+      console.error('AI Analysis error:', error);
+    }
+  };
+
+  const createComparisonGrid = async (projectId) => {
+    try {
+      setIsProcessing(true);
+      const response = await axios.post(`${API}/batch-compare/${projectId}`);
+      
+      if (response.status === 200) {
+        alert('Comparison grid created! Check your downloads.');
+        // Download automatically
+        window.open(`${API}/download-comparison/${projectId}`, '_blank');
+      }
+    } catch (error) {
+      console.error('Comparison creation error:', error);
+      alert('Failed to create comparison grid');
+    } finally {
+      setIsProcessing(false);
     }
   };
 

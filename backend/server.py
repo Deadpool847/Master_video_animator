@@ -796,6 +796,110 @@ async def get_video_preview(project_id: str):
         cap.release()
         
         return {"preview_frames": preview_frames}
+
+@api_router.get("/analyze/{project_id}")
+async def analyze_video_intelligence(project_id: str):
+    """AI-powered video analysis with intelligent effect recommendations"""
+    try:
+        # Get input file path
+        input_path = None
+        for file_path in UPLOAD_DIR.glob(f"{project_id}_*"):
+            input_path = file_path
+            break
+        
+        if not input_path:
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        # Perform intelligent analysis
+        analysis = SmartVideoAnalyzer.analyze_video_content(input_path)
+        
+        if "error" in analysis:
+            raise HTTPException(status_code=500, detail=analysis["error"])
+        
+        return {
+            "project_id": project_id,
+            "intelligent_analysis": analysis["analysis"],
+            "ai_recommendations": analysis["recommendations"],
+            "message": "AI analysis completed - smart recommendations generated!"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Analysis error: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+@api_router.post("/batch-compare/{project_id}")
+async def create_effect_comparison(project_id: str):
+    """Create a side-by-side comparison of different artistic effects"""
+    try:
+        # Get input file path
+        input_path = None
+        for file_path in UPLOAD_DIR.glob(f"{project_id}_*"):
+            input_path = file_path
+            break
+        
+        if not input_path:
+            raise HTTPException(status_code=404, detail="Video file not found")
+        
+        output_filename = f"{project_id}_comparison_grid.mp4"
+        output_path = OUTPUT_DIR / output_filename
+        
+        # Create comparison grid
+        success = BatchVideoProcessor.create_comparison_grid(
+            [input_path], output_path, 
+            effects=['original', 'pencil', 'cartoon', 'oil_painting']
+        )
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to create comparison grid")
+        
+        # Update project in database
+        await db.video_projects.update_one(
+            {"id": project_id},
+            {"$set": {"comparison_grid_path": str(output_path)}}
+        )
+        
+        return {
+            "project_id": project_id,
+            "comparison_path": str(output_path),
+            "message": "Comparison grid created successfully!"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Comparison creation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Comparison creation failed: {str(e)}")
+
+@api_router.get("/download-comparison/{project_id}")
+async def download_comparison_grid(project_id: str):
+    """Download the comparison grid video"""
+    try:
+        project_doc = await db.video_projects.find_one({"id": project_id})
+        if not project_doc:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        comparison_path = project_doc.get("comparison_grid_path")
+        if not comparison_path:
+            raise HTTPException(status_code=404, detail="Comparison grid not found")
+        
+        file_path = Path(comparison_path)
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Comparison grid file not found")
+        
+        return FileResponse(
+            path=str(file_path),
+            filename=f"comparison_grid_{project_id}.mp4",
+            media_type="video/mp4",
+            headers={"Content-Disposition": f"attachment; filename=comparison_grid_{project_id}.mp4"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Comparison download error: {e}")
+        raise HTTPException(status_code=500, detail="Comparison download failed")
         
     except HTTPException:
         # Re-raise HTTP exceptions with their original status codes

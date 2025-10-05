@@ -386,11 +386,15 @@ async def process_video(request: ProcessingRequest, background_tasks: Background
         
         project = VideoProject(**project_doc)
         
+        # Clean up old processing entries
+        cleanup_processing_status()
+        
         # Initialize processing status
         processing_status[request.project_id] = {
             'status': 'starting',
             'progress': 0,
-            'message': 'Initializing processing...'
+            'message': 'Initializing processing...',
+            'timestamp': time.time()
         }
         
         # Update project status

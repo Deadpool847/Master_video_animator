@@ -762,45 +762,87 @@ const VideoArtConverter = () => {
               </div>
             )}
 
-            {/* Recent Projects */}
+            {/* Masterpiece Gallery */}
             <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700">
-              <h2 className="text-2xl font-bold mb-4">📚 Recent Projects</h2>
+              <h2 className="text-2xl font-bold mb-4">🎬 Masterpiece Gallery</h2>
               
-              <div className="space-y-3 max-h-64 overflow-y-auto">
-                {projects.map((project) => (
-                  <div key={project.id} className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm truncate">{project.filename}</p>
-                      <p className="text-xs text-gray-400">
-                        {project.art_style ? `${project.art_style} style` : 'No style'} • 
-                        {project.duration?.toFixed(1)}s
-                      </p>
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {projects.filter(p => p.status === 'completed').map((project) => (
+                  <div key={project.id} className="p-4 bg-gradient-to-r from-gray-800/70 to-gray-700/70 rounded-xl border border-gray-600 hover:border-cyan-400/50 transition-all">
+                    {/* Thumbnail and Info */}
+                    <div className="flex items-center gap-3 mb-3">
+                      {project.thumbnail && (
+                        <img 
+                          src={project.thumbnail} 
+                          alt="Thumbnail"
+                          className="w-16 h-12 object-cover rounded border border-gray-500"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <p className="font-medium text-sm text-white truncate">{project.filename}</p>
+                        <p className="text-xs text-gray-300">
+                          <span className="inline-block px-2 py-1 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-full border border-cyan-400/30 mr-2">
+                            {project.art_style?.replace('_', ' ').toUpperCase() || 'PROCESSED'}
+                          </span>
+                          {project.duration?.toFixed(1)}s • {new Date(project.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
                     </div>
                     
+                    {/* Action Buttons */}
                     <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${
-                        project.status === 'completed' ? 'bg-green-400' :
-                        project.status === 'processing' ? 'bg-blue-400' :
-                        project.status === 'failed' ? 'bg-red-400' : 'bg-gray-400'
-                      }`} />
+                      <button
+                        onClick={() => openPreview(project.id)}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center justify-center gap-1"
+                      >
+                        <span>👁️</span> Preview
+                      </button>
                       
-                      {project.status === 'completed' && (
-                        <button
-                          onClick={() => downloadVideo(project.id)}
-                          className="text-cyan-400 hover:text-cyan-300 text-sm"
-                        >
-                          ⬇️
-                        </button>
-                      )}
+                      <button
+                        onClick={() => downloadVideo(project.id)}
+                        data-download={project.id}
+                        className="bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white text-xs font-bold py-2 px-4 rounded-lg transition-all"
+                      >
+                        ⬇️
+                      </button>
                     </div>
                   </div>
                 ))}
                 
-                {projects.length === 0 && (
-                  <p className="text-gray-400 text-center py-4">No projects yet</p>
+                {projects.filter(p => p.status === 'completed').length === 0 && (
+                  <div className="text-center py-8">
+                    <div className="text-6xl mb-4">🎨</div>
+                    <p className="text-gray-400">No masterpieces yet</p>
+                    <p className="text-gray-500 text-sm">Upload a video to create your first artistic masterpiece!</p>
+                  </div>
                 )}
               </div>
             </div>
+            
+            {/* Processing Queue */}
+            {projects.filter(p => p.status !== 'completed').length > 0 && (
+              <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700">
+                <h2 className="text-xl font-bold mb-4">⚡ Processing Queue</h2>
+                
+                <div className="space-y-2">
+                  {projects.filter(p => p.status !== 'completed').map((project) => (
+                    <div key={project.id} className="flex items-center justify-between p-2 bg-gray-700/30 rounded-lg">
+                      <div className="flex-1">
+                        <p className="font-medium text-xs truncate">{project.filename}</p>
+                        <p className="text-xs text-gray-400">
+                          {project.art_style || 'No style'} • {project.status}
+                        </p>
+                      </div>
+                      
+                      <span className={`w-2 h-2 rounded-full ${
+                        project.status === 'processing' ? 'bg-blue-400 animate-pulse' :
+                        project.status === 'failed' ? 'bg-red-400' : 'bg-gray-400'
+                      }`} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

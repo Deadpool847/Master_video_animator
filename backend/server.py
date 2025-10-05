@@ -501,26 +501,41 @@ async def process_video_background(project_id: str, art_style: str, intensity: f
                 for temp_output in temp_outputs:
                     f.write(f"file '{temp_output.resolve()}'\n")
             
-            # Use optimized FFmpeg command with proper error handling
+            # Use optimized FFmpeg command with full path and robust error handling
+            ffmpeg_path = '/usr/bin/ffmpeg'
             cmd = [
-                'ffmpeg', '-y',  # Overwrite output files without asking
+                ffmpeg_path, '-y',  # Overwrite output files without asking
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', str(concat_file),
                 '-c:v', 'libx264',  # Use H.264 codec
                 '-preset', 'fast',   # Faster encoding
                 '-crf', '23',        # Good quality/size balance
+                '-movflags', '+faststart',  # Optimize for web streaming
                 str(output_path)
             ]
             
             import subprocess
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            
-            if result.returncode != 0:
-                logging.error(f"FFmpeg error: {result.stderr}")
-                # Fallback: copy first chunk as output
-                if temp_outputs:
-                    shutil.copy2(str(temp_outputs[0]), str(output_path))
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)  # 5 minute timeout
+                
+                if result.returncode != 0:
+                    logging.error(f"FFmpeg concatenation failed: {result.stderr}")
+                    # Fallback 1: Try simpler FFmpeg command
+                    simple_cmd = [ffmpeg_path, '-y', '-f', 'concat', '-safe', '0', '-i', str(concat_file), '-c', 'copy', str(output_path)]
+                    simple_result = subprocess.run(simple_cmd, capture_output=True, text=True, timeout=180)
+                    
+                    if simple_result.returncode != 0:
+                        logging.error(f"Simple FFmpeg also failed: {simple_result.stderr}")
+                        # Fallback 2: Use OpenCV to combine chunks
+                        await VideoProcessor.combine_chunks_opencv(temp_outputs, output_path)
+                
+            except subprocess.TimeoutExpired:
+                logging.error("FFmpeg timeout - using fallback method")
+                await VideoProcessor.combine_chunks_opencv(temp_outputs, output_path)
+            except Exception as e:
+                logging.error(f"FFmpeg subprocess error: {e}")
+                await VideoProcessor.combine_chunks_opencv(temp_outputs, output_path)
             
             # Cleanup temp files
             for temp_output in temp_outputs:

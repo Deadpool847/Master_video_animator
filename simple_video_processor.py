@@ -65,7 +65,8 @@ class SuperReliableVideoProcessor:
     
     @staticmethod
     def process_video_bulletproof(input_path, output_path, art_style='pencil', intensity=0.5, 
-                                crop_params=None, trim_params=None, resize_params=None):
+                                crop_params=None, trim_params=None, resize_params=None, 
+                                progress_callback=None):
         """Process video with bulletproof reliability"""
         
         temp_dir = Path(tempfile.gettempdir()) / "video_processing"

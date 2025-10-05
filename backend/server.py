@@ -23,6 +23,7 @@ import time
 import sys
 sys.path.append('/app')
 from simple_video_processor import SuperReliableVideoProcessor
+from advanced_features import AdvancedArtisticEffects, SmartVideoAnalyzer, BatchVideoProcessor
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')

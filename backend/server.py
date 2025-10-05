@@ -20,6 +20,8 @@ import json
 import base64
 from threading import Thread
 import time
+import sys
+sys.path.append('/app')
 from simple_video_processor import SuperReliableVideoProcessor
 
 ROOT_DIR = Path(__file__).parent

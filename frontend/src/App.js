@@ -585,8 +585,8 @@ const VideoArtConverter = () => {
             {/* Video Preview */}
             {previewFrames.length > 0 && (
               <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700">
-                <h2 className="text-2xl font-bold mb-4">📹 Preview</h2>
-                <div className="grid grid-cols-2 gap-2">
+                <h2 className="text-2xl font-bold mb-4">📹 Preview & Intelligence</h2>
+                <div className="grid grid-cols-2 gap-2 mb-4">
                   {previewFrames.slice(0, 4).map((frame, index) => (
                     <img
                       key={index}
@@ -597,8 +597,43 @@ const VideoArtConverter = () => {
                   ))}
                 </div>
                 
+                {/* AI Recommendations */}
+                {aiAnalysis && aiAnalysis.ai_recommendations && (
+                  <div className="mb-4 p-3 bg-gradient-to-r from-blue-900/30 to-purple-900/30 rounded-lg border border-blue-400/30">
+                    <h3 className="text-sm font-bold text-blue-300 mb-2">🤖 AI Recommendations</h3>
+                    {aiAnalysis.ai_recommendations.slice(0, 2).map((rec, index) => (
+                      <div key={index} className="text-xs mb-2">
+                        <button
+                          onClick={() => setArtStyle(rec.effect)}
+                          className="text-cyan-300 hover:text-cyan-200 font-medium"
+                        >
+                          {rec.effect.replace('_', ' ').toUpperCase()}
+                        </button>
+                        <p className="text-gray-400">{rec.reason}</p>
+                        <div className="w-full bg-gray-700 rounded-full h-1 mt-1">
+                          <div 
+                            className="bg-cyan-400 h-1 rounded-full" 
+                            style={{ width: `${rec.confidence * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Comparison Grid Button */}
                 {currentProject && (
-                  <div className="mt-4 text-sm text-gray-400">
+                  <button
+                    onClick={() => createComparisonGrid(currentProject.id)}
+                    disabled={isProcessing}
+                    className="w-full mb-4 bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 disabled:opacity-50 text-white font-bold py-2 px-4 rounded-lg transition-all text-sm"
+                  >
+                    {isProcessing ? 'Creating...' : '🎯 Create Effect Comparison Grid'}
+                  </button>
+                )}
+                
+                {currentProject && (
+                  <div className="text-sm text-gray-400">
                     <p>Duration: {currentProject.duration?.toFixed(1)}s</p>
                     <p>Dimensions: {currentProject.width} × {currentProject.height}</p>
                     <p>FPS: {currentProject.fps?.toFixed(1)}</p>

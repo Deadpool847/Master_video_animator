@@ -43,8 +43,10 @@ api_router = APIRouter(prefix="/api")
 UPLOAD_DIR = ROOT_DIR / "uploads"
 OUTPUT_DIR = ROOT_DIR / "outputs"
 TEMP_DIR = ROOT_DIR / "temp"
+GALLERY_DIR = ROOT_DIR / "gallery"  # Internal gallery for processed videos
+PREVIEW_DIR = ROOT_DIR / "previews"  # Preview videos directory
 
-for dir_path in [UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR]:
+for dir_path in [UPLOAD_DIR, OUTPUT_DIR, TEMP_DIR, GALLERY_DIR, PREVIEW_DIR]:
     dir_path.mkdir(exist_ok=True)
 
 # Define Models

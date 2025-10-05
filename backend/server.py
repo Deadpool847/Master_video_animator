@@ -562,8 +562,6 @@ async def process_video(request: ProcessingRequest, background_tasks: Background
         if not project_doc:
             raise HTTPException(status_code=404, detail="Project not found")
         
-        project = VideoProject(**project_doc)
-        
         # Clean up old processing entries
         cleanup_processing_status()
         

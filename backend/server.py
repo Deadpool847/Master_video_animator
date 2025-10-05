@@ -177,71 +177,103 @@ class VideoProcessor:
     
     @staticmethod
     async def process_video_chunk(input_path, output_path, start_frame, end_frame, art_style, intensity, crop_params, resize_params, project_id):
-        """Process a chunk of video frames"""
+        """Process a chunk of video frames with optimized performance"""
+        cap = None
+        out = None
+        
         try:
             cap = cv2.VideoCapture(str(input_path))
+            if not cap.isOpened():
+                raise Exception("Cannot open video file")
             
             # Get video properties
             fps = cap.get(cv2.CAP_PROP_FPS)
-            total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            
-            # Set up video writer
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             
             # Determine output dimensions
             if resize_params:
                 width, height = resize_params['width'], resize_params['height']
             else:
-                width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                width, height = original_width, original_height
             
             if crop_params:
                 width = crop_params['width']
                 height = crop_params['height']
             
+            # Use H.264 codec for better compatibility and compression
+            fourcc = cv2.VideoWriter_fourcc(*'avc1')
+            
+            # Remove existing output file to avoid FFmpeg prompts
+            if output_path.exists():
+                output_path.unlink()
+            
             out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
+            if not out.isOpened():
+                # Fallback to mp4v codec
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                out = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
             
             # Jump to start frame
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
             
             frame_count = start_frame
             processed_frames = 0
+            total_chunk_frames = end_frame - start_frame
+            
+            # Process frames with optimized batching
+            batch_size = 5  # Process 5 frames at a time for better performance
             
             while frame_count < end_frame and cap.isOpened():
-                ret, frame = cap.read()
-                if not ret:
+                frames_batch = []
+                
+                # Read batch of frames
+                for _ in range(batch_size):
+                    if frame_count >= end_frame:
+                        break
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+                    frames_batch.append(frame)
+                    frame_count += 1
+                
+                if not frames_batch:
                     break
                 
-                # Apply crop if specified
-                if crop_params:
-                    x, y, w, h = crop_params['x'], crop_params['y'], crop_params['width'], crop_params['height']
-                    frame = frame[y:y+h, x:x+w]
+                # Process batch
+                for frame in frames_batch:
+                    # Apply crop if specified
+                    if crop_params:
+                        x, y, w, h = crop_params['x'], crop_params['y'], crop_params['width'], crop_params['height']
+                        # Ensure crop coordinates are within bounds
+                        x = max(0, min(x, original_width - w))
+                        y = max(0, min(y, original_height - h))
+                        frame = frame[y:y+h, x:x+w]
+                    
+                    # Apply resize if specified
+                    if resize_params:
+                        frame = cv2.resize(frame, (resize_params['width'], resize_params['height']))
+                    
+                    # Apply artistic effect
+                    if art_style == 'pencil':
+                        frame = VideoProcessor.apply_pencil_sketch(frame, intensity)
+                    elif art_style == 'cartoon':
+                        frame = VideoProcessor.apply_cartoon_effect(frame, intensity)
+                    
+                    if out.isOpened():
+                        out.write(frame)
+                    processed_frames += 1
                 
-                # Apply resize if specified
-                if resize_params:
-                    frame = cv2.resize(frame, (resize_params['width'], resize_params['height']))
+                # Update progress every batch
+                progress = min(95, (processed_frames / total_chunk_frames) * 100)
+                processing_status[project_id] = {
+                    'status': 'processing',
+                    'progress': progress,
+                    'message': f'Processing {art_style} effect: {processed_frames}/{total_chunk_frames} frames'
+                }
                 
-                # Apply artistic effect
-                if art_style == 'pencil':
-                    frame = VideoProcessor.apply_pencil_sketch(frame, intensity)
-                elif art_style == 'cartoon':
-                    frame = VideoProcessor.apply_cartoon_effect(frame, intensity)
-                
-                out.write(frame)
-                processed_frames += 1
-                frame_count += 1
-                
-                # Update progress every 10 frames
-                if processed_frames % 10 == 0:
-                    progress = (frame_count - start_frame) / (end_frame - start_frame) * 100
-                    processing_status[project_id] = {
-                        'status': 'processing',
-                        'progress': progress,
-                        'message': f'Processing frames {frame_count}/{end_frame}'
-                    }
-            
-            cap.release()
-            out.release()
+                # Allow other async tasks to run
+                await asyncio.sleep(0.001)
             
             return True
             
@@ -250,9 +282,17 @@ class VideoProcessor:
             processing_status[project_id] = {
                 'status': 'failed',
                 'progress': 0,
-                'message': f'Error: {str(e)}'
+                'message': f'Processing error: {str(e)}'
             }
             return False
+            
+        finally:
+            if cap:
+                cap.release()
+            if out:
+                out.release()
+            # Clean up memory
+            cv2.destroyAllWindows()
 
 # API Routes
 @api_router.get("/")

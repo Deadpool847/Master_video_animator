@@ -565,24 +565,53 @@ async def get_projects():
 @api_router.get("/download/{project_id}")
 async def download_video(project_id: str):
     """Download processed video"""
-    project_doc = await db.video_projects.find_one({"id": project_id})
-    if not project_doc:
-        raise HTTPException(status_code=404, detail="Project not found")
-    
-    project = VideoProject(**project_doc)
-    
-    if project.status != "completed" or not project.output_path:
-        raise HTTPException(status_code=400, detail="Video not ready for download")
-    
-    output_path = Path(project.output_path)
-    if not output_path.exists():
-        raise HTTPException(status_code=404, detail="Output file not found")
-    
-    return FileResponse(
-        path=output_path,
-        filename=f"{project.filename.split('.')[0]}_{project.art_style}.mp4",
-        media_type="video/mp4"
-    )
+    try:
+        project_doc = await db.video_projects.find_one({"id": project_id})
+        if not project_doc:
+            raise HTTPException(status_code=404, detail="Project not found")
+        
+        project = VideoProject(**project_doc)
+        
+        if project.status != "completed":
+            raise HTTPException(status_code=400, detail=f"Video not ready for download. Status: {project.status}")
+        
+        if not project.output_path:
+            raise HTTPException(status_code=404, detail="Output path not found")
+        
+        output_path = Path(project.output_path)
+        if not output_path.exists():
+            # Try to find the file in outputs directory
+            potential_files = list(OUTPUT_DIR.glob(f"{project_id}_*output.mp4"))
+            if potential_files:
+                output_path = potential_files[0]
+                # Update the database with correct path
+                await db.video_projects.update_one(
+                    {"id": project_id},
+                    {"$set": {"output_path": str(output_path)}}
+                )
+            else:
+                raise HTTPException(status_code=404, detail="Output file not found on disk")
+        
+        # Ensure file is readable
+        if not output_path.is_file():
+            raise HTTPException(status_code=404, detail="Invalid output file")
+        
+        # Create a safe filename
+        safe_filename = f"{project.filename.split('.')[0]}_{project.art_style or 'processed'}.mp4"
+        safe_filename = "".join(c for c in safe_filename if c.isalnum() or c in ".-_")
+        
+        return FileResponse(
+            path=str(output_path),
+            filename=safe_filename,
+            media_type="video/mp4",
+            headers={"Content-Disposition": f"attachment; filename={safe_filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Download error for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail="Download failed")
 
 @api_router.get("/preview/{project_id}")
 async def get_video_preview(project_id: str):

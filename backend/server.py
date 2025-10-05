@@ -333,7 +333,7 @@ class VideoProcessor:
                     continue
             
             if out is None or not out.isOpened():
-                raise Exception(f"Could not initialize video writer with any codec")
+                raise Exception("Could not initialize video writer with any codec")
             
             # Jump to start frame
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)

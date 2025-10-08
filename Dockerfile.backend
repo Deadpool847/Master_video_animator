@@ -58,15 +58,12 @@ COPY backend/ /app/backend/
 COPY simple_video_processor.py /app/
 COPY advanced_features.py /app/
 
-# Copy environment file (with fallback)
-COPY backend/.env* /app/backend/
-RUN if [ -f /app/backend/.env.docker ]; then \
-        cp /app/backend/.env.docker /app/backend/.env; \
-    elif [ ! -f /app/backend/.env ]; then \
-        echo "MONGO_URL=mongodb://admin:masterpiece123@mongodb:27017/video_art_masterpiece?authSource=admin" > /app/backend/.env && \
-        echo "DB_NAME=video_art_masterpiece" >> /app/backend/.env && \
-        echo "CORS_ORIGINS=http://localhost:3000,http://frontend:3000" >> /app/backend/.env; \
-    fi
+# Create backend environment configuration (bulletproof)
+RUN echo "MONGO_URL=mongodb://admin:masterpiece123@mongodb:27017/video_art_masterpiece?authSource=admin" > /app/backend/.env && \
+    echo "DB_NAME=video_art_masterpiece" >> /app/backend/.env && \
+    echo "CORS_ORIGINS=http://localhost:3000,http://frontend:3000" >> /app/backend/.env && \
+    echo "✅ Backend environment configured" && \
+    cat /app/backend/.env
 
 # Create necessary directories
 RUN mkdir -p /app/backend/uploads /app/backend/outputs /app/backend/temp /app/backend/gallery /app/backend/previews

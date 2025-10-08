@@ -31,8 +31,14 @@ RUN npm config set registry https://registry.npmjs.org/ && \
 # Copy frontend code
 COPY frontend/ /app/
 
-# Copy Docker-specific environment file
-COPY frontend/.env.docker /app/.env
+# Copy environment file (with fallback)
+COPY frontend/.env* /app/
+RUN if [ -f /app/.env.docker ]; then \
+        cp /app/.env.docker /app/.env; \
+    elif [ ! -f /app/.env ]; then \
+        echo "REACT_APP_BACKEND_URL=http://localhost:8001" > /app/.env && \
+        echo "GENERATE_SOURCEMAP=false" >> /app/.env; \
+    fi
 
 # Build the application
 RUN npm run build

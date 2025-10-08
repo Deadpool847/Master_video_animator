@@ -29,6 +29,9 @@ COPY backend/ /app/backend/
 COPY simple_video_processor.py /app/
 COPY advanced_features.py /app/
 
+# Copy Docker-specific environment file
+COPY backend/.env.docker /app/backend/.env
+
 # Create necessary directories
 RUN mkdir -p /app/backend/uploads /app/backend/outputs /app/backend/temp /app/backend/gallery /app/backend/previews
 

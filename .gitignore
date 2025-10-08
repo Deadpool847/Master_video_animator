@@ -95,3 +95,9 @@ backend/outputs/8f389a07-d101-40ec-98bb-6686d0d90be4_pencil_output.mp4
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*
+backend/outputs/7565db15-22c3-495c-afa4-af8aea01fafc_pencil_output.mp4
+backend/gallery/pencil/7565db15-22c3-495c-afa4-af8aea01fafc_pencil_1759726651.mp4

@@ -1,17 +1,32 @@
-# Video Art Masterpiece - Frontend Dockerfile
+# Video Art Masterpiece - Frontend Dockerfile (Bulletproof Edition)
 FROM node:18-alpine
 
-# Install curl for health checks
-RUN apk add --no-cache curl
+# Install system dependencies
+RUN apk add --no-cache \
+    curl \
+    bash \
+    git \
+    && rm -rf /var/cache/apk/*
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV GENERATE_SOURCEMAP=false
 
 # Set working directory
 WORKDIR /app
 
 # Copy package files
-COPY frontend/package.json frontend/yarn.lock* /app/
+COPY frontend/package.json /app/
+COPY frontend/yarn.lock* /app/
 
-# Install dependencies with legacy peer deps to avoid conflicts
-RUN npm install --legacy-peer-deps
+# Install dependencies with multiple fallback strategies
+RUN npm config set registry https://registry.npmjs.org/ && \
+    npm cache clean --force && \
+    (npm install --legacy-peer-deps --no-audit --no-fund || \
+     npm install --force --no-audit --no-fund || \
+     yarn install --ignore-engines --network-timeout 600000 || \
+     npm install --legacy-peer-deps --registry https://registry.npmjs.org/) && \
+    npm cache clean --force
 
 # Copy frontend code
 COPY frontend/ /app/

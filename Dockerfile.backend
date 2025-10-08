@@ -1,18 +1,47 @@
-# Video Art Masterpiece - Backend Dockerfile
+# Video Art Masterpiece - Backend Dockerfile (Bulletproof Edition)
 FROM python:3.11-slim
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender-dev \
-    libgomp1 \
-    libgstreamer1.0-0 \
-    libgstreamer-plugins-base1.0-0 \
-    && rm -rf /var/lib/apt/lists/*
+# Set environment variables for non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Install system dependencies with robust error handling
+RUN apt-get clean && \
+    apt-get update --fix-missing && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        wget \
+        ca-certificates \
+        gnupg \
+        lsb-release && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender-dev \
+        libgomp1 \
+        libgcc-s1 \
+        libstdc++6 \
+        libc6 \
+        build-essential \
+        pkg-config && \
+    # Try to install OpenGL libraries (fallback if not available)
+    (apt-get install -y --no-install-recommends libgl1-mesa-glx || \
+     apt-get install -y --no-install-recommends libgl1-mesa-dev || \
+     echo "OpenGL libraries not available, continuing...") && \
+    # Try to install GStreamer libraries (fallback if not available)  
+    (apt-get install -y --no-install-recommends \
+        libgstreamer1.0-0 \
+        libgstreamer-plugins-base1.0-0 || \
+     echo "GStreamer libraries not available, continuing...") && \
+    # Clean up to reduce image size
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Set working directory
 WORKDIR /app
@@ -29,8 +58,15 @@ COPY backend/ /app/backend/
 COPY simple_video_processor.py /app/
 COPY advanced_features.py /app/
 
-# Copy Docker-specific environment file
-COPY backend/.env.docker /app/backend/.env
+# Copy environment file (with fallback)
+COPY backend/.env* /app/backend/
+RUN if [ -f /app/backend/.env.docker ]; then \
+        cp /app/backend/.env.docker /app/backend/.env; \
+    elif [ ! -f /app/backend/.env ]; then \
+        echo "MONGO_URL=mongodb://admin:masterpiece123@mongodb:27017/video_art_masterpiece?authSource=admin" > /app/backend/.env && \
+        echo "DB_NAME=video_art_masterpiece" >> /app/backend/.env && \
+        echo "CORS_ORIGINS=http://localhost:3000,http://frontend:3000" >> /app/backend/.env; \
+    fi
 
 # Create necessary directories
 RUN mkdir -p /app/backend/uploads /app/backend/outputs /app/backend/temp /app/backend/gallery /app/backend/previews

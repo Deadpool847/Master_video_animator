@@ -432,13 +432,14 @@ async def root():
 async def health_check():
     """System health check endpoint"""
     try:
-        # Check disk space
+        # Check disk space (cross-platform)
         import shutil
-        disk_usage = shutil.disk_usage("/app")
+        check_path = "." if platform.system().lower() == 'windows' else "/app"
+        disk_usage = shutil.disk_usage(check_path)
         free_gb = disk_usage.free / (1024**3)
         
-        # Check FFmpeg availability
-        ffmpeg_available = Path('/usr/bin/ffmpeg').exists()
+        # Check FFmpeg availability (cross-platform)
+        ffmpeg_available = bool(shutil.which('ffmpeg')) or Path('/usr/bin/ffmpeg').exists()
         
         # Check database connection
         db_healthy = False

@@ -1,0 +1,243 @@
+# 🛠️ Video Art Masterpiece - Windows Troubleshooting Guide
+
+===============================================================================
+🚨 COMMON WINDOWS ISSUES AND SOLUTIONS
+===============================================================================
+
+❌ ISSUE: "python is not recognized as an internal or external command"
+✅ SOLUTION:
+1. Reinstall Python from https://www.python.org/downloads/
+2. ⚠️ IMPORTANT: Check "Add Python to PATH" during installation
+3. Restart Command Prompt after installation
+4. Test: python --version
+
+❌ ISSUE: "node is not recognized as an internal or external command"
+✅ SOLUTION:
+1. Install Node.js from https://nodejs.org/
+2. Use the Windows Installer (.msi) for automatic PATH setup
+3. Restart Command Prompt
+4. Test: node --version && npm --version
+
+❌ ISSUE: "MongoDB connection failed"
+✅ SOLUTION:
+1. Install MongoDB Community Edition
+2. Start MongoDB service: net start MongoDB
+3. Or start manually: "C:\Program Files\MongoDB\Server\7.0\bin\mongod.exe"
+4. Create data directory if missing: mkdir C:\data\db
+5. Check if port 27017 is available: netstat -an | findstr :27017
+
+❌ ISSUE: "FFmpeg not found" or video processing fails
+✅ SOLUTION:
+Method 1 (Recommended):
+1. Install Chocolatey: https://chocolatey.org/install
+2. Open PowerShell as Administrator
+3. Run: choco install ffmpeg
+4. Restart Command Prompt
+
+Method 2 (Manual):
+1. Download FFmpeg: https://www.gyan.dev/ffmpeg/builds/
+2. Extract to C:\ffmpeg\
+3. Add C:\ffmpeg\bin to System PATH:
+   - Right-click "This PC" → Properties
+   - Advanced System Settings → Environment Variables
+   - Edit "Path" in System Variables
+   - Add: C:\ffmpeg\bin
+4. Restart Command Prompt
+5. Test: ffmpeg -version
+
+❌ ISSUE: "OpenCV installation failed" or import errors
+✅ SOLUTION:
+1. Update pip: python -m pip install --upgrade pip
+2. Try headless version: pip install opencv-python-headless
+3. If still fails:
+   - Install Visual C++ Redistributable
+   - Try: pip install --upgrade setuptools wheel
+   - Then: pip install opencv-python
+
+❌ ISSUE: "Yarn command not found"
+✅ SOLUTION:
+1. Install yarn globally: npm install -g yarn
+2. Restart Command Prompt
+3. Alternative: Use npm instead of yarn in all commands
+
+❌ ISSUE: Port conflicts (3000 or 8001 already in use)
+✅ SOLUTION:
+1. Find process using port: netstat -ano | findstr :3000
+2. Kill process: taskkill /PID <process_id> /F
+3. Or change ports in configuration files
+
+❌ ISSUE: "Access denied" or permission errors
+✅ SOLUTION:
+1. Run Command Prompt as Administrator
+2. Add Windows Defender exclusions:
+   - Add project folder to exclusions
+   - Windows Security → Virus & threat protection → Exclusions
+3. Disable real-time protection temporarily during installation
+
+❌ ISSUE: Virtual environment activation fails
+✅ SOLUTION:
+1. Delete existing venv folder: rmdir /s venv
+2. Create new: python -m venv venv
+3. Activate: venv\Scripts\activate.bat
+4. If still fails, use full path: C:\path\to\project\venv\Scripts\activate.bat
+
+❌ ISSUE: "Module not found" errors after installation
+✅ SOLUTION:
+1. Ensure virtual environment is activated (should see (venv) in prompt)
+2. Reinstall dependencies: pip install -r backend\requirements_windows.txt
+3. Check Python path: python -c "import sys; print(sys.path)"
+4. Verify installation: pip list
+
+❌ ISSUE: Video upload fails or processing errors
+✅ SOLUTION:
+1. Check available disk space (need 2-3x video file size)
+2. Ensure FFmpeg is properly installed and in PATH
+3. Try smaller video files first (under 100MB)
+4. Check Windows Event Viewer for system errors
+5. Temporarily disable antivirus during processing
+
+❌ ISSUE: Frontend build fails or won't start
+✅ SOLUTION:
+1. Delete node_modules: rmdir /s /q frontend\node_modules
+2. Clear npm cache: npm cache clean --force
+3. Reinstall: cd frontend && npm install
+4. Try with yarn: npm install -g yarn && yarn install
+5. Check Node.js version compatibility (needs 18+)
+
+❌ ISSUE: Backend fails to start with import errors
+✅ SOLUTION:
+1. Activate virtual environment: venv\Scripts\activate.bat
+2. Check if all dependencies installed: pip list
+3. Reinstall problematic packages individually
+4. Update PYTHONPATH: set PYTHONPATH=%CD%
+5. Run from project root directory
+
+❌ ISSUE: CORS errors in browser
+✅ SOLUTION:
+1. Check backend .env file has correct CORS_ORIGINS
+2. Ensure frontend URL matches (http://localhost:3000)
+3. Restart both frontend and backend servers
+4. Clear browser cache and cookies
+
+❌ ISSUE: Database connection errors
+✅ SOLUTION:
+1. Verify MongoDB is running: net start MongoDB
+2. Check connection string in backend\.env
+3. Test connection: mongo (or mongosh for newer versions)
+4. Create database directory: mkdir C:\data\db
+5. Check firewall isn't blocking port 27017
+
+===============================================================================
+🔍 DEBUGGING STEPS
+===============================================================================
+
+1. Check System Requirements:
+   - Windows 10/11 (64-bit)
+   - 8GB+ RAM
+   - 10GB+ free disk space
+   - Python 3.11+
+   - Node.js 18+
+   - MongoDB 5.0+
+
+2. Verify Installations:
+   > python --version
+   > node --version
+   > npm --version
+   > mongod --version
+   > ffmpeg -version
+
+3. Check Services:
+   > net start | findstr MongoDB
+   > netstat -an | findstr :27017
+   > netstat -an | findstr :3000
+   > netstat -an | findstr :8001
+
+4. Test Components Individually:
+   - Backend API: http://localhost:8001/api/health
+   - Frontend: http://localhost:3000
+   - Database: mongo or mongosh
+
+5. Check Logs:
+   - Backend: Check terminal output
+   - Frontend: Browser Developer Tools (F12)
+   - MongoDB: Event Viewer → Windows Logs → Application
+   - System: Event Viewer → Windows Logs → System
+
+===============================================================================
+📁 FILE PERMISSIONS AND ANTIVIRUS
+===============================================================================
+
+Windows Defender and antivirus software can interfere with the application:
+
+1. Add Exclusions:
+   - Project directory (C:\VideoArtMasterpiece\)
+   - Python installation directory
+   - Node.js installation directory
+   - Temporary directories
+
+2. Temporarily disable real-time protection during:
+   - Initial setup and dependency installation
+   - First video processing test
+   - Large video file processing
+
+3. If using corporate antivirus:
+   - Request exclusions from IT department
+   - Use Windows Sandbox for testing
+   - Consider running in WSL2
+
+===============================================================================
+🎯 PERFORMANCE OPTIMIZATION FOR WINDOWS
+===============================================================================
+
+1. System Optimization:
+   - Close unnecessary applications
+   - Ensure 4GB+ available RAM
+   - Use SSD storage for better performance
+   - Disable Windows animations during processing
+
+2. Video Processing:
+   - Start with small files (under 50MB)
+   - Avoid 4K videos on systems with <16GB RAM
+   - Monitor CPU and memory usage during processing
+
+3. Network and Storage:
+   - Use wired internet connection if uploading large files
+   - Ensure project is on local drive (not network/USB)
+   - Clean temporary files regularly
+
+===============================================================================
+🆘 EMERGENCY RECOVERY
+===============================================================================
+
+If everything breaks and you need to start fresh:
+
+1. Complete Reset:
+   > rmdir /s /q venv
+   > rmdir /s /q frontend\node_modules
+   > rmdir /s /q backend\__pycache__
+
+2. Clean Reinstall:
+   > setup_windows.bat
+
+3. Nuclear Option:
+   - Uninstall and reinstall Python, Node.js, MongoDB
+   - Delete project folder and re-extract
+   - Restart computer
+   - Run setup_windows.bat
+
+===============================================================================
+📞 GET HELP
+===============================================================================
+
+If you're still stuck after trying these solutions:
+
+1. Check Windows Event Viewer for system errors
+2. Run Windows System File Checker: sfc /scannow
+3. Update Windows and all drivers
+4. Try running in Windows Subsystem for Linux (WSL2)
+5. Consider using Docker Desktop as alternative
+
+Remember: Most issues are related to PATH environment variables or permissions.
+Always restart Command Prompt after making system changes!
+
+===============================================================================

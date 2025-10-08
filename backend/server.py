@@ -21,7 +21,9 @@ import base64
 from threading import Thread
 import time
 import sys
-sys.path.append('/app')
+import platform
+# Add current directory to path for imports (cross-platform)
+sys.path.append('.' if platform.system().lower() == 'windows' else '/app')
 from simple_video_processor import SuperReliableVideoProcessor
 from advanced_features import AdvancedArtisticEffects, SmartVideoAnalyzer, BatchVideoProcessor
 

@@ -1,0 +1,95 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: video-art-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: masterpiece123
+      MONGO_INITDB_DATABASE: video_art_masterpiece
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - video-art-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Backend API Service
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: video-art-backend
+    restart: unless-stopped
+    environment:
+      - MONGO_URL=mongodb://admin:masterpiece123@mongodb:27017/video_art_masterpiece?authSource=admin
+      - DB_NAME=video_art_masterpiece
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+    ports:
+      - "8001:8001"
+    volumes:
+      - video_uploads:/app/backend/uploads
+      - video_outputs:/app/backend/outputs
+      - video_gallery:/app/backend/gallery
+      - video_previews:/app/backend/previews
+      - video_temp:/app/backend/temp
+    networks:
+      - video-art-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Web Service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: video-art-frontend
+    restart: unless-stopped
+    environment:
+      - REACT_APP_BACKEND_URL=http://localhost:8001
+    ports:
+      - "3000:3000"
+    networks:
+      - video-art-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  video-art-network:
+    driver: bridge
+    name: video-art-network
+
+volumes:
+  mongodb_data:
+    name: video-art-mongodb-data
+  video_uploads:
+    name: video-art-uploads
+  video_outputs:
+    name: video-art-outputs
+  video_gallery:
+    name: video-art-gallery
+  video_previews:
+    name: video-art-previews
+  video_temp:
+    name: video-art-temp

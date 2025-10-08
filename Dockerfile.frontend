@@ -16,6 +16,9 @@ RUN npm install --legacy-peer-deps
 # Copy frontend code
 COPY frontend/ /app/
 
+# Copy Docker-specific environment file
+COPY frontend/.env.docker /app/.env
+
 # Build the application
 RUN npm run build
 

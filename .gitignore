@@ -121,3 +121,7 @@ backend/gallery/pencil/7565db15-22c3-495c-afa4-af8aea01fafc_pencil_1759726651.mp
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*

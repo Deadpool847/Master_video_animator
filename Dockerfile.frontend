@@ -42,14 +42,20 @@ RUN npm config set registry https://registry.npmjs.org/ && \
 # Copy frontend code
 COPY frontend/ /app/
 
-# Copy environment file (with fallback)
-COPY frontend/.env* /app/ 2>/dev/null || true
-RUN if [ -f /app/.env.docker ]; then \
-        cp /app/.env.docker /app/.env; \
-    elif [ ! -f /app/.env ]; then \
+# Copy environment files (with robust error handling)
+RUN mkdir -p /tmp/env_backup
+COPY frontend/.env /tmp/env_backup/.env 2>/dev/null || echo "No .env file found, will create one"
+COPY frontend/.env.docker /tmp/env_backup/.env.docker 2>/dev/null || echo "No .env.docker file found, will create one"
+RUN if [ -f /tmp/env_backup/.env.docker ]; then \
+        cp /tmp/env_backup/.env.docker /app/.env; \
+    elif [ -f /tmp/env_backup/.env ]; then \
+        cp /tmp/env_backup/.env /app/.env; \
+    else \
         echo "REACT_APP_BACKEND_URL=http://localhost:8001" > /app/.env && \
         echo "GENERATE_SOURCEMAP=false" >> /app/.env; \
-    fi
+    fi && \
+    echo "✅ Environment configuration completed" && \
+    cat /app/.env
 
 # Debug: Check if scripts exist
 RUN echo "📋 Available npm scripts:" && npm run --silent || true

@@ -61,10 +61,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        - BUILDKIT_INLINE_CACHE=1
     container_name: video-art-frontend
     restart: unless-stopped
     environment:
       - REACT_APP_BACKEND_URL=http://localhost:8001
+      - NODE_ENV=production
     ports:
       - "3000:3000"
     networks:

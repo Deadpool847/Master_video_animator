@@ -737,9 +737,10 @@ async def create_preview_video(input_path, preview_path, max_duration=10):
         else:
             preview_duration = max_duration
         
-        # Create preview using FFmpeg
+        # Create preview using FFmpeg (cross-platform)
+        ffmpeg_path = shutil.which('ffmpeg') or '/usr/bin/ffmpeg'
         ffmpeg_cmd = [
-            '/usr/bin/ffmpeg', '-y',
+            ffmpeg_path, '-y',
             '-i', str(input_path),
             '-t', str(preview_duration),
             '-c:v', 'libx264',

@@ -63,12 +63,13 @@ echo.
 echo 📦 Step 2: Building Frontend...
 docker build -t video-art-frontend -f Dockerfile.frontend . --no-cache --progress=plain
 if errorlevel 1 (
-    echo ⚠️ First frontend build attempt failed, trying with different approach...
-    docker build -t video-art-frontend -f Dockerfile.frontend . --network=host --progress=plain
+    echo ⚠️ First frontend build attempt failed (Exit code 127 - npm run build not found)
+    echo 🔄 Trying alternative Dockerfile...
+    docker build -t video-art-frontend -f Dockerfile.frontend.simple . --progress=plain
     
     if errorlevel 1 (
-        echo ❌ Frontend build failed!
-        echo 🔍 Trying npm cache clean and rebuild...
+        echo ❌ Simple frontend build also failed!
+        echo 🔧 Trying manual build approach...
         
         REM Create a temporary fix Dockerfile
         echo FROM node:18-alpine > Dockerfile.frontend.tmp

@@ -1,4 +1,4 @@
-# Video Art Masterpiece - Frontend Dockerfile (Bulletproof Edition)
+# Video Art Masterpiece - Frontend Dockerfile (Exit Code 127 Fix)
 FROM node:18-alpine
 
 # Install system dependencies
@@ -6,26 +6,37 @@ RUN apk add --no-cache \
     curl \
     bash \
     git \
+    python3 \
+    make \
+    g++ \
     && rm -rf /var/cache/apk/*
 
 # Set environment variables
-ENV NODE_ENV=production
+ENV NODE_ENV=development
 ENV GENERATE_SOURCEMAP=false
+ENV CI=false
+ENV SKIP_PREFLIGHT_CHECK=true
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first
 COPY frontend/package.json /app/
 COPY frontend/yarn.lock* /app/
 
-# Install dependencies with multiple fallback strategies
+# Install dependencies with bulletproof approach
 RUN npm config set registry https://registry.npmjs.org/ && \
     npm cache clean --force && \
-    (npm install --legacy-peer-deps --no-audit --no-fund || \
-     npm install --force --no-audit --no-fund || \
-     yarn install --ignore-engines --network-timeout 600000 || \
-     npm install --legacy-peer-deps --registry https://registry.npmjs.org/) && \
+    # Install yarn first
+    npm install -g yarn@1.22.22 && \
+    # Try multiple installation methods
+    (yarn install --network-timeout 600000 --ignore-engines --ignore-optional || \
+     npm install --legacy-peer-deps --no-audit --no-fund --maxsockets 1 || \
+     npm install --force --no-audit --no-fund) && \
+    # Verify key dependencies are installed
+    npm list react-scripts || npm install react-scripts@5.0.1 --legacy-peer-deps && \
+    npm list @craco/craco || npm install @craco/craco@7.1.0 --legacy-peer-deps && \
+    # Clear cache
     npm cache clean --force
 
 # Copy frontend code

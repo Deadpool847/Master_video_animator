@@ -60,7 +60,7 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
+      dockerfile: Dockerfile.frontend.bulletproof
       args:
         - BUILDKIT_INLINE_CACHE=1
     container_name: video-art-frontend

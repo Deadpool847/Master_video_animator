@@ -21,7 +21,9 @@ import base64
 from threading import Thread
 import time
 import sys
-sys.path.append('/app')
+import platform
+# Add current directory to path for imports (cross-platform)
+sys.path.append('.' if platform.system().lower() == 'windows' else '/app')
 from simple_video_processor import SuperReliableVideoProcessor
 from advanced_features import AdvancedArtisticEffects, SmartVideoAnalyzer, BatchVideoProcessor
 
@@ -430,13 +432,14 @@ async def root():
 async def health_check():
     """System health check endpoint"""
     try:
-        # Check disk space
+        # Check disk space (cross-platform)
         import shutil
-        disk_usage = shutil.disk_usage("/app")
+        check_path = "." if platform.system().lower() == 'windows' else "/app"
+        disk_usage = shutil.disk_usage(check_path)
         free_gb = disk_usage.free / (1024**3)
         
-        # Check FFmpeg availability
-        ffmpeg_available = Path('/usr/bin/ffmpeg').exists()
+        # Check FFmpeg availability (cross-platform)
+        ffmpeg_available = bool(shutil.which('ffmpeg')) or Path('/usr/bin/ffmpeg').exists()
         
         # Check database connection
         db_healthy = False
@@ -734,9 +737,10 @@ async def create_preview_video(input_path, preview_path, max_duration=10):
         else:
             preview_duration = max_duration
         
-        # Create preview using FFmpeg
+        # Create preview using FFmpeg (cross-platform)
+        ffmpeg_path = shutil.which('ffmpeg') or '/usr/bin/ffmpeg'
         ffmpeg_cmd = [
-            '/usr/bin/ffmpeg', '-y',
+            ffmpeg_path, '-y',
             '-i', str(input_path),
             '-t', str(preview_duration),
             '-c:v', 'libx264',
